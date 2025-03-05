@@ -1,6 +1,6 @@
-dataclasses # Incase we're not use py >=3.7
-numpy==1.19.0
-scipy==1.4.0
+# Remove dataclasses since Python 3.10 includes it
+numpy>=1.21,<1.24
+scipy>=1.7.0,<1.10.0
 absl-py
 gcsfs
 gin-config
@@ -13,6 +13,3 @@ pycairo
 seaborn
 ujson
 scikit-learn
-
-
-

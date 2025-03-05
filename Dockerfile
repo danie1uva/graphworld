@@ -1,87 +1,90 @@
-# Copyright 2022 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Base image: Ubuntu 22.04 (Jammy)
+FROM ubuntu:22.04
 
-FROM ubuntu:bionic
-# FROM nvidia/cuda:11.3.1-cudnn8-runtime-ubuntu18.04 
+# Set up timezone (prevent interactive prompts)
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 
-# tzdata asks questions.
-ENV DEBIAN_FRONTEND="noninteractive"
-ENV TZ="America/New_York"
+# Update package list and install essential tools
+RUN apt-get update && apt-get install -y \
+    wget \
+    apt-transport-https \
+    gnupg \
+    ca-certificates \
+    software-properties-common
 
-# && apt-get install -y nvidia-container-runtime \
+# Try installing from official Ubuntu repository
+RUN apt-get update && apt-get install -y python3-graph-tool || true
 
-# Need this to add graph tool pubkey
-# RUN apt-get -y update && apt-get install -y apt-transport-https gnupg ca-certificates
+# Check if graph-tool was installed from Ubuntu repo
+RUN if ! dpkg -s python3-graph-tool >/dev/null 2>&1; then \
+    echo "Installing graph-tool from upstream repository..." && \
+    wget https://downloads.skewed.de/skewed-keyring/skewed-keyring_1.1_all_jammy.deb && \
+    dpkg -i skewed-keyring_1.1_all_jammy.deb && \
+    echo "deb [signed-by=/usr/share/keyrings/skewed-keyring.gpg] https://downloads.skewed.de/apt jammy main" > \
+    /etc/apt/sources.list.d/skewed.list && \
+    apt-get update && \
+    apt-get install -y python3-graph-tool; \
+    fi
 
-RUN apt-get -y update \
-        && apt-get install -y apt-transport-https gnupg ca-certificates \
-        && echo "deb [ arch=amd64 ] http://downloads.skewed.de/apt bionic main" >> /etc/apt/sources.list \
-        && apt-key adv --keyserver keys.openpgp.org --recv-key 612DEFB798507F25 \
-        && apt-get -y update \
-        && apt-get install -y --no-install-recommends \
-        build-essential \
-        pkg-config \
-        libcairo2-dev \
-        python3.6-dev \
-        python3-pip \
-        python3-venv \
-        python3-decorator \
-        python3-cairo \
-        python3-graph-tool \
-        git
+# Install additional dependencies
+RUN apt-get install -y --no-install-recommends \
+    python3-distutils \
+    python3-setuptools \
+    python3-dev \
+    build-essential \
+    pkg-config \
+    libcairo2-dev \
+    python3-pip \
+    python3-venv \
+    python3-decorator \
+    python3-cairo \
+    git \
+    cmake \
+    g++ \
+    libomp-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-
-
-# Set up venv to avoid root installing/running python.
+# Set up Python virtual environment
 ENV VIRTUAL_ENV=/opt/venv
 RUN python3 -m venv --system-site-packages ${VIRTUAL_ENV}
 ENV PATH="${VIRTUAL_ENV}/bin:/app:$PATH"
-ENV PYTHONPATH "/app:$PYTHONPATH"
+ENV PYTHONPATH=/app
 
-# Used --no-cache-dir to save resources when using Docker Desktop on OSX.
-# Otherwise the install failed on my local machine.
-# torch MUST be installed prior to installing torch-geometric.
-# Image size was causing download timeouts when using cuda versions of torch+sparse+geometric
-# Switched to CPU, need to re-think this if GPU is needed.
-        # && pip3 install --no-cache-dir torch-sparse -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html \
-        # && pip3 install --no-cache-dir torch-sparse -f https://pytorch-geometric.com/whl/torch-1.9.0+cpu.html \
-# Note, torch-geometric and it's deps can't be installed in the same
-# pip command...
-RUN pip3 install --upgrade pip \
-        && pip install --no-cache-dir torch==1.9.0+cpu -f https://download.pytorch.org/whl/torch_stable.html \
-        && pip3 install --no-index --no-cache-dir torch-sparse torch-scatter -f https://pytorch-geometric.com/whl/torch-1.9.0+cpu.html \
-        && pip3 install --no-cache-dir torch-geometric==1.7.2 \
-        && pip3 install cmake \
-        && pip3 install cython \
-        && pip3 install networkit
+RUN pip3 install --upgrade pip setuptools wheel \
+    && pip3 install --no-cache-dir torch==1.13.1 -f https://download.pytorch.org/whl/torch_stable.html \
+    && pip3 install --no-cache-dir torch-sparse torch-scatter -f https://data.pyg.org/whl/torch-1.13.1+cpu.html \
+    && pip3 install --no-cache-dir torch-geometric==2.2.0
 
+# Install cython and networkit first
+RUN pip3 install cython networkit
 
+# Install project dependencies (fix numpy issue)
+RUN pip3 install --no-cache-dir --prefer-binary "numpy>=1.21,<1.24"
 COPY ./src/requirements.txt /app/requirements.txt
 RUN pip3 install -U --no-cache-dir -r /app/requirements.txt
 RUN pip3 cache purge
 
-# Installing CABAM Graph Generation tools
+# Install Docker Compose v2 (for ARM, e.g. aarch64)
+RUN apt-get update && apt-get install -y curl && \
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -SL https://github.com/docker/compose/releases/download/v2.18.1/docker-compose-linux-aarch64 \
+    -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+RUN ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+
+# Clone and install CABAM Graph Generation tools
 RUN git clone https://github.com/snap-research/cabam-graph-generation.git ./src/cabam_graph_generation/
-WORKDIR ./src/cabam_graph_generation/
-RUN pip install .
+WORKDIR /src/cabam_graph_generation/
+RUN pip3 install .
 WORKDIR /
 
+# Copy project files
 COPY ./src /app
 
-# Install apache beam sdk
-# Example: https://github.com/GoogleCloudPlatform/python-docs-samples/blob/master/dataflow/gpu-workers/Dockerfile
-COPY --from=apache/beam_python3.6_sdk /opt/apache/beam /opt/apache/beam
+# Install Apache Beam SDK
+COPY --from=apache/beam_python3.10_sdk /opt/apache/beam /opt/apache/beam
 
 # Set the entrypoint to Apache Beam SDK worker launcher.
 ENTRYPOINT [ "/opt/apache/beam/boot" ]
