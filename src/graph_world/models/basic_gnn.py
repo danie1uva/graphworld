@@ -496,3 +496,39 @@ class SuperGAT(BasicGNN):
             SuperGATConv(in_channels, out_channels, dropout=dropout, **kwargs))
         for _ in range(1, num_layers):
             self.convs.append(SuperGATConv(hidden_channels, out_channels, **kwargs))
+
+@gin.configurable
+class HGCN(BasicGNN):
+    r"""Hyperbolic Graph Convolutional Network, based on
+    "Hyperbolic Graph Convolutional Networks" by Chami et al.
+
+    Args:
+        in_channels (int): Size of each input sample.
+        hidden_channels (int): Size of each hidden sample.
+        num_layers (int): Number of message passing layers.
+        out_channels (int, optional): If provided, applies a final linear transformation to
+            convert hidden node embeddings to output size. (default: None)
+        dropout (float, optional): Dropout probability. (default: 0.0)
+        act (Callable, optional): The non-linear activation function to use.
+            (default: :meth:`torch.nn.ReLU(inplace=True)`)
+        norm (torch.nn.Module, optional): The normalisation operator to use.
+            (default: None)
+        jk (str, optional): The Jumping Knowledge mode (:obj:`"last"`, :obj:`"cat"`, :obj:`"max"`).
+            (default: "last")
+        c (float, optional): Curvature parameter for the hyperbolic space. (default: 1.0)
+        **kwargs: Additional arguments for the HGCNConv layer.
+    """
+    def __init__(self, in_channels: int, hidden_channels: int, num_layers: int,
+                 out_channels: Optional[int] = None, dropout: float = 0.0,
+                 act: Optional[Callable] = ReLU(inplace=True),
+                 norm: Optional[torch.nn.Module] = None, jk: str = 'last',
+                 c: float = 1.0, **kwargs):
+        super().__init__(in_channels, hidden_channels, num_layers,
+                         out_channels, dropout, act, norm, jk)
+        # Import the new hyperbolic layer from our script.
+        from hgcn_conv import HGCNConv  
+        # First layer: from in_channels to hidden_channels.
+        self.convs.append(HGCNConv(in_channels, hidden_channels, c=c, **kwargs))
+        # Remaining layers: hidden_channels -> hidden_channels.
+        for _ in range(1, num_layers):
+            self.convs.append(HGCNConv(hidden_channels, hidden_channels, c=c, **kwargs))

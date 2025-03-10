@@ -100,6 +100,7 @@ def entry(argv=None):
     dataframe_rows = (
         torch_data | 'Benchmark Simple GCN.' >> beam.ParDo(
         gen_handler_wrapper.handler.GetBenchmarkParDo()))
+    
 
     dataframe_rows | 'Write JSON' >> beam.io.WriteToText(
         os.path.join(args.output, 'results.ndjson'), num_shards=10)

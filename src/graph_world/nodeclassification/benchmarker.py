@@ -58,6 +58,7 @@ class NNNodeBenchmarker(Benchmarker):
     self._train_mask = train_mask
     self._val_mask = val_mask
     self._test_mask = test_mask
+    print(f'Train mask: {train_mask.sum()}, Val mask: {val_mask.sum()}, Test mask: {test_mask.sum()}')
 
   def train_step(self, data):
     self._model.train()
@@ -70,39 +71,46 @@ class NNNodeBenchmarker(Benchmarker):
     return loss
 
   def test(self, data, test_on_val=False):
-    self._model.eval()
-    out = self._model(data.x, data.edge_index)
-    if test_on_val:
-      pred = out[self._val_mask].detach().numpy()
-    else:
-      pred = out[self._test_mask].detach().numpy()
+      self._model.eval()
+      out = self._model(data.x, data.edge_index)
+      # Apply softmax to obtain proper probabilities
+      out = torch.nn.functional.softmax(out, dim=-1)
+      
+      if test_on_val:
+          pred = out[self._val_mask].detach().numpy()
+      else:
+          pred = out[self._test_mask].detach().numpy()
 
-    pred_best = pred.argmax(-1)
-    if test_on_val:
-      correct = data.y[self._val_mask].numpy()
-    else:
-      correct = data.y[self._test_mask].numpy()
-    n_classes = out.shape[-1]
-    pred_onehot = np.zeros((len(pred_best), n_classes))
-    pred_onehot[np.arange(pred_best.shape[0]), pred_best] = 1
+      pred_best = pred.argmax(-1)
+      if test_on_val:
+          correct = data.y[self._val_mask].numpy()
+      else:
+          correct = data.y[self._test_mask].numpy()
+      
+      n_classes = out.shape[-1]
+      # Build one-hot encoded true labels using numpy.eye for clarity
+      correct_onehot = np.eye(n_classes)[correct]
 
-    correct_onehot = np.zeros((len(correct), n_classes))
-    correct_onehot[np.arange(correct.shape[0]), correct] = 1
+      # Attempt to compute ROC AUC and log loss; if only one class is present,
+      # these metrics are undefined. In that case, return NaN.
+      try:
+          rocauc_ovr = sklearn.metrics.roc_auc_score(correct_onehot, pred, multi_class='ovr')
+          rocauc_ovo = sklearn.metrics.roc_auc_score(correct_onehot, pred, multi_class='ovo')
+          logloss = sklearn.metrics.log_loss(correct_onehot, pred)
+      except Exception as e:
+          rocauc_ovr = float('nan')
+          rocauc_ovo = float('nan')
+          logloss = float('nan')
 
-    results = {
-        'accuracy': sklearn.metrics.accuracy_score(correct, pred_best),
-        'f1_micro': sklearn.metrics.f1_score(correct, pred_best,
-                                                  average='micro'),
-        'f1_macro': sklearn.metrics.f1_score(correct, pred_best,
-                                                  average='macro'),
-        'rocauc_ovr': sklearn.metrics.roc_auc_score(correct_onehot,
-                                                         pred_onehot,
-                                                         multi_class='ovr'),
-        'rocauc_ovo': sklearn.metrics.roc_auc_score(correct_onehot,
-                                                         pred_onehot,
-                                                         multi_class='ovo'),
-        'logloss': sklearn.metrics.log_loss(correct, pred)}
-    return results
+      results = {
+          'accuracy': sklearn.metrics.accuracy_score(correct, pred_best),
+          'f1_micro': sklearn.metrics.f1_score(correct, pred_best, average='micro'),
+          'f1_macro': sklearn.metrics.f1_score(correct, pred_best, average='macro'),
+          'rocauc_ovr': rocauc_ovr,
+          'rocauc_ovo': rocauc_ovo,
+          'logloss': logloss
+      }
+      return results 
 
   def train(self, data,
             tuning_metric: str,
@@ -119,6 +127,13 @@ class NNNodeBenchmarker(Benchmarker):
         best_val_metric = val_metrics[tuning_metric]
         best_val_metrics = copy.deepcopy(val_metrics)
         test_metrics = self.test(data, test_on_val=False)
+
+    if test_metrics is None:
+      test_metrics = self.test(data, test_on_val=False)
+    
+    if best_val_metrics is None:
+      best_val_metrics = self.test(data, test_on_val=True)
+
     return losses, test_metrics, best_val_metrics
 
   def Benchmark(self, element,
@@ -139,12 +154,14 @@ class NNNodeBenchmarker(Benchmarker):
     out['test_metrics'] = {}
 
     if skipped:
+      print(f'Skipping benchmark for sample id {sample_id}', flush=True)
       logging.info(f'Skipping benchmark for sample id {sample_id}')
       return out
 
     train_mask, val_mask, test_mask = masks
 
     self.SetMasks(train_mask, val_mask, test_mask)
+    
 
     val_metrics = {}
     test_metrics = {}

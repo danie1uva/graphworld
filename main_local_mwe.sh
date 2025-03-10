@@ -25,12 +25,16 @@ do
     esac
 done
 
-OUTPUT_PATH="/tmp/mwe"
+OUTPUT_PATH="/tmp"  # Inside the container, /tmp is mapped to ./mwe on host
 
-rm -rf "${OUTPUT_PATH}"
-mkdir -p ${OUTPUT_PATH}
+rm -rf ./mwe  # Remove the local directory if it exists
+mkdir -p ./mwe  # Ensure the local directory exists
 
-docker-compose run \
+# Remove orphaned containers before running
+docker-compose down --remove-orphans
+
+# Run the pipeline with automatic cleanup
+docker-compose run --rm \
   --entrypoint "python3 /app/beam_benchmark_main.py \
   --output ${OUTPUT_PATH} \
   --gin_files /app/configs/nodeclassification_mwe.gin \

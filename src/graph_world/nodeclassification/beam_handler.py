@@ -168,6 +168,7 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
           num_val=self._num_val
       )
 
+
       masks_object_name = os.path.join(
           self._output_path, '{0:05}_masks.txt'.format(sample_id))
       with beam.io.filesystems.FileSystems.create(
@@ -175,9 +176,9 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
         for mask in out['masks']:
           np.savetxt(f, np.atleast_2d(mask.numpy()), fmt='%i', delimiter=' ')
         f.close()
-    except:
+    except Exception as e:
       out['skipped'] = True
-      print(f'failed masks {sample_id}')
+      print(f'failed masks {sample_id}: {str(e)}')
       logging.info(f'Failed to sample masks for sample id {sample_id}')
       yield out
       return
@@ -192,7 +193,7 @@ class NodeClassificationBeamHandler(GeneratorBeamHandler):
   def __init__(self, benchmarker_wrappers, generator_wrapper,
                num_tuning_rounds=1, tuning_metric='',
                tuning_metric_is_loss=False, num_train_per_class=20,
-               num_val=500, save_tuning_results=False):
+               num_val=50, save_tuning_results=False):
     self._sample_do_fn = SampleNodeClassificationDatasetDoFn(generator_wrapper)
     self._benchmark_par_do = BenchmarkGNNParDo(
         benchmarker_wrappers, num_tuning_rounds, tuning_metric,

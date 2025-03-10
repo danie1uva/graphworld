@@ -74,6 +74,7 @@ RUN apt-get update && apt-get install -y curl && \
 
 RUN ln -s /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
 
+
 # Clone and install CABAM Graph Generation tools
 RUN git clone https://github.com/snap-research/cabam-graph-generation.git ./src/cabam_graph_generation/
 WORKDIR /src/cabam_graph_generation/

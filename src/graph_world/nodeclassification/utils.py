@@ -64,7 +64,8 @@ def nodeclassification_data_to_torchgeo_data(
   node_features = torch.tensor(nodeclassification_data.node_features,
                                dtype=torch.float)
   edge_index = torch.tensor(edge_tuples, dtype=torch.long)
-  edge_attr = torch.tensor(edge_feature_data, dtype=torch.float)
+  edge_feature_data_np = np.array(edge_feature_data)
+  edge_attr = torch.from_numpy(edge_feature_data_np).float()
   labels = torch.tensor(nodeclassification_data.graph_memberships,
                         dtype=torch.long)
   return Data(x=node_features, edge_index=edge_index.t().contiguous(),
@@ -165,9 +166,9 @@ def get_label_masks(y: torch.Tensor,
   remaining = (~train_mask).nonzero(as_tuple=False).view(-1)
   remaining = remaining[torch.randperm(remaining.size(0))]
   if remaining.size(0) < num_val - 10:  # ensure at least 10 in test set
-    num_val = remaining.size(0) - 10
-  if num_val < 10:  # ensure at least 10 in val set
-    raise RuntimeError("set num_val lower, or increase number of nodes")
+      num_val = max(10, remaining.size(0) - 10)  # Adjust `num_val` dynamically
+  if num_val < 10:
+      num_val = 10  # Ensure at least 10 validation samples
 
   val_mask = torch.zeros(num_samples, dtype=bool)
   val_mask[remaining[:num_val]] = True

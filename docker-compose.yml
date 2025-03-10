@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 services:
   graphworld:
     build:
@@ -25,11 +26,10 @@ services:
     ports:
       - "8888:8888"
     volumes:
+      - ./mwe:/tmp
+      
       # Map src -> app for code updates.
       - ${PWD}/src:/app
-      
-      # Map /tmp -> /tmp to output data for local testing
-      - /tmp:/tmp
       
       # Mount config on host to access gcloud credentials.
       - ~/.config/gcloud:/root/.config/gcloud
