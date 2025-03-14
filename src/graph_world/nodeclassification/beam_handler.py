@@ -91,6 +91,8 @@ class WriteNodeClassificationDatasetDoFn(beam.DoFn):
         f.write(buf)
       f.close()
 
+    yield element
+
 
 class ComputeNodeClassificationMetrics(beam.DoFn):
 

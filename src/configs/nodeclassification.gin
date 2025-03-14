@@ -3,25 +3,12 @@ import graph_world.nodeclassification.generator_wrappers
 
 GeneratorBeamHandlerWrapper.handler = @NodeClassificationBeamHandler()
 NodeClassificationBeamHandler.tuning_metric = "rocauc_ovr"
-NodeClassificationBeamHandler.num_train_per_class = 20
+NodeClassificationBeamHandler.num_train_per_class = 50
 NodeClassificationBeamHandler.num_val = 500
 
 NodeClassificationBeamHandler.benchmarker_wrappers = [
   @GCN_/NNNodeBenchmark,
-  @GraphSAGE_/NNNodeBenchmark,
-  @GIN_/NNNodeBenchmark,
-  @GAT_/NNNodeBenchmark,
-  @GATv2_/NNNodeBenchmark,
-  @ARMA_/NNNodeBenchmark,
-  @FiLM_/NNNodeBenchmark,
-
   @MLP_/NNNodeBenchmark,
-  @APPNP_/NNNodeBenchmark,
-  @SGC_/NNNodeBenchmark,
-  @SuperGAT_/NNNodeBenchmark,
-  @Transformer_/NNNodeBenchmark,
-
-  @Baseline_/NNNodeBaselineBenchmark,
 ]
 
 include 'app/configs/nodeclassification_model_tuning.gin'

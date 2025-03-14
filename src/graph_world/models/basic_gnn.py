@@ -21,7 +21,7 @@ import copy
 import torch
 from torch import Tensor
 import torch.nn.functional as F
-from torch.nn import ModuleList, Sequential, Linear, BatchNorm1d, ReLU
+from torch.nn import ModuleList, Sequential, Linear, BatchNorm1d, ReLU, Tanh
 
 from torch_geometric.nn.conv import GCNConv, SAGEConv, GINConv, GATConv, \
     SGConv, GATv2Conv, ARMAConv, FiLMConv, SuperGATConv, TransformerConv
@@ -29,6 +29,7 @@ from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 
 from torch_geometric.nn.conv import APPNP as APPNPConv
 
+from hgcn.layers.hyp_layers import HyperbolicGraphConvolution as HGCNConv
 
 class BasicGNN(torch.nn.Module):
     r"""An abstract class for implementing basic GNN models.
@@ -326,6 +327,7 @@ class MLP(torch.nn.Module):
             layers.append(Linear(hidden_channels, out_channels))
 
         self.model = Sequential(*layers)
+        print(self.__repr__())
 
     def reset_parameters(self):
         for module in self.model:
@@ -506,29 +508,39 @@ class HGCN(BasicGNN):
         in_channels (int): Size of each input sample.
         hidden_channels (int): Size of each hidden sample.
         num_layers (int): Number of message passing layers.
-        out_channels (int, optional): If provided, applies a final linear transformation to
-            convert hidden node embeddings to output size. (default: None)
-        dropout (float, optional): Dropout probability. (default: 0.0)
-        act (Callable, optional): The non-linear activation function to use.
-            (default: :meth:`torch.nn.ReLU(inplace=True)`)
-        norm (torch.nn.Module, optional): The normalisation operator to use.
-            (default: None)
-        jk (str, optional): The Jumping Knowledge mode (:obj:`"last"`, :obj:`"cat"`, :obj:`"max"`).
-            (default: "last")
-        c (float, optional): Curvature parameter for the hyperbolic space. (default: 1.0)
-        **kwargs: Additional arguments for the HGCNConv layer.
+        out_channels (int, optional): Final output size; if not provided, equals hidden_channels.
+        dropout (float, optional): Dropout probability.
+        act (Callable, optional): Non-linear activation (default: Tanh, which is common in hyperbolic models).
+        norm (torch.nn.Module, optional): Normalisation operator.
+        jk (str, optional): Jumping Knowledge mode.
+        c (float, optional): Curvature parameter for the hyperbolic space.
+        manifold (optional): Manifold instance to use (if None, a default is used).
+        use_bias (bool, optional): Whether to use bias in the linear mappings.
+        use_att (bool, optional): Whether to use attention in aggregation.
+        local_agg (bool, optional): Whether to use a local aggregation scheme.
+        **kwargs: Additional arguments forwarded to HGCNConv.
     """
     def __init__(self, in_channels: int, hidden_channels: int, num_layers: int,
                  out_channels: Optional[int] = None, dropout: float = 0.0,
-                 act: Optional[Callable] = ReLU(inplace=True),
-                 norm: Optional[torch.nn.Module] = None, jk: str = 'last',
-                 c: float = 1.0, **kwargs):
+                 act: Optional[Callable] = Tanh(), norm: Optional[torch.nn.Module] = None, jk: str = 'last',
+                 c: float = 1.0, manifold=None, use_bias: bool = True,
+                 use_att: bool = False, local_agg: bool = False, **kwargs):
         super().__init__(in_channels, hidden_channels, num_layers,
                          out_channels, dropout, act, norm, jk)
-        # Import the new hyperbolic layer from our script.
-        from hgcn_conv import HGCNConv  
-        # First layer: from in_channels to hidden_channels.
-        self.convs.append(HGCNConv(in_channels, hidden_channels, c=c, **kwargs))
-        # Remaining layers: hidden_channels -> hidden_channels.
+        
+        # If no manifold is provided, set a default (adjust this import as needed).
+        if manifold is None:
+            from ...hgcn.manifolds import Hyperboloid  # Ensure you have a default manifold implementation.
+            manifold = Hyperboloid()
+            
+        # Initialize the hyperbolic layers with the extra hyperparameters.
+        self.convs.append(
+            HGCNConv(manifold, in_channels, hidden_channels, c_in=c, c_out=c, dropout=dropout,
+                     act=act, use_bias=use_bias, use_att=use_att, local_agg=local_agg, **kwargs)
+        )
         for _ in range(1, num_layers):
-            self.convs.append(HGCNConv(hidden_channels, hidden_channels, c=c, **kwargs))
+            self.convs.append(
+                HGCNConv(manifold, hidden_channels, hidden_channels, c_in=c, c_out=c, dropout=dropout,
+                         act=act, use_bias=use_bias, use_att=use_att, local_agg=local_agg, **kwargs)
+            )
+

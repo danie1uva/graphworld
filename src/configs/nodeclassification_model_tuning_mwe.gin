@@ -39,3 +39,33 @@ GraphSAGE_/NNNodeBenchmark.h_params = {
     'num_layers' : %NUM_LAYERS,
     'dropout' : %DROPOUT,
 }
+
+# HGCN setup 
+HGCN_/NNNodeBenchmark.model_class = @HGCN 
+HGCN_/NNNodeBenchmark.benchmark_params = {
+    'epochs' : %EPOCHS,
+    'lr': %LR,
+}
+HGCN_/NNNodeBenchmark.h_params = {
+    'in_channels' : 16,
+    'use_att' : True,
+    'local_agg' : True, 
+    'manifold' : 'Hyperboloid',
+    'hidden_channels' : %HIDDEN_CHANNELS,
+    'num_layers' : %NUM_LAYERS,
+    'dropout' : %DROPOUT,
+}
+
+# MLP setup
+MLP_/NNNodeBenchmark.model_class = @MLP
+MLP_/NNNodeBenchmark.benchmark_params = {
+    'epochs':%EPOCHS,
+    'lr':%LR,
+}
+
+MLP_/NNNodeBenchmark.h_params = {
+    'in_channels' : 16,
+    'hidden_channels' : %HIDDEN_CHANNELS,
+    'num_layers' : %NUM_LAYERS,
+    'dropout' : %DROPOUT,
+}

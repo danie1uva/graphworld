@@ -23,11 +23,13 @@ source local_job_setup.sh
 TASK="nodeclassification"
 GENERATOR="sbm"
 
-while getopts t:g: flag
+while getopts t:g:s:l: flag
 do
     case "${flag}" in
         t) TASK=${OPTARG};;
         g) GENERATOR=${OPTARG};;
+        s) SAVE_RESULTS=${OPTARG};;
+        l) TUNING_METRIC_IS_LOSS=${OPTARG};;
     esac
 done
 
@@ -38,7 +40,7 @@ mkdir -p ${OUTPUT_PATH}
 # Add gin file string.
 GIN_FILES="/app/configs/${TASK}.gin "
 GIN_FILES="${GIN_FILES} /app/configs/${TASK}_generators/${GENERATOR}/default_setup.gin"
-GIN_FILES="${GIN_FILES} /app/configs/common_hparams/${TASK}_test.gin"
+GIN_FILES="${GIN_FILES} /app/configs/common_hparams/${TASK}.gin"
 if [ ${RUN_MODE2} = true ]; then
   GIN_FILES="${GIN_FILES} /app/configs/${TASK}_generators/${GENERATOR}/optimal_model_hparams.gin"
 fi
@@ -47,14 +49,18 @@ fi
 TASK_CLASS_NAME=$(get_task_class_name ${TASK})
 GIN_PARAMS="GeneratorBeamHandlerWrapper.nsamples=${NUM_SAMPLES}\
             ${TASK_CLASS_NAME}BeamHandler.num_tuning_rounds=${NUM_TUNING_ROUNDS}\
-            ${TASK_CLASS_NAME}BeamHandler.save_tuning_results=${SAVE_TUNING_RESULTS}"
+            ${TASK_CLASS_NAME}BeamHandler.save_tuning_results=${SAVE_TUNING_RESULTS}\
+            ${TASK_CLASS_NAME}BeamHandler.tuning_metric_is_loss=${TUNING_METRIC_IS_LOSS}"\
 
 ENTRYPOINT="python3 /app/beam_benchmark_main.py \
   --runner DirectRunner \
   --gin_files ${GIN_FILES} \
   --gin_params ${GIN_PARAMS} \
-  --output "${OUTPUT_PATH}""
+  --output ${OUTPUT_PATH} \
+  --write_intermediate ${SAVE_RESULTS}"
 
-echo ${ENTRYPOINT}
 
-docker-compose run --entrypoint "${ENTRYPOINT}" ${BUILD_NAME}
+# Remove orphaned containers before running
+docker-compose down --remove-orphans
+
+docker-compose run --rm --entrypoint "${ENTRYPOINT}" ${BUILD_NAME}

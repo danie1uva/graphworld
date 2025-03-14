@@ -36,7 +36,6 @@ class NNNodeBenchmarker(Benchmarker):
     super().__init__(generator_config, model_class, benchmark_params, h_params, torch_data)
     # remove meta entries from h_params
     self._epochs = benchmark_params['epochs']
-
     self._model = model_class(**h_params)
     # TODO(palowitch): make optimizer configurable.
     self._optimizer = torch.optim.Adam(self._model.parameters(),
@@ -170,6 +169,7 @@ class NNNodeBenchmarker(Benchmarker):
       losses, test_metrics, val_metrics = self.train(
         torch_data, tuning_metric=tuning_metric, tuning_metric_is_loss=tuning_metric_is_loss)
     except Exception as e:
+      print(f'Failed to run for sample id {sample_id} using model {self._model_name}: {str(e)}') 
       logging.info(f'Failed to run for sample id {sample_id}')
       out['skipped'] = True
 

@@ -140,7 +140,11 @@ class BenchmarkGNNParDo(beam.DoFn):
                           self._benchmark_params,
                           self._model_classes,
                           self._h_params):
-      print(f'Running {benchmarker_class} and model f{model_class}')
+      
+      print(f'Running class: {benchmarker_class}\nModel: {model_class}\nHyperparameters: {h_params}')
+      print("Tuning Rounds: ", self._num_tuning_rounds)   
+      print("Tuning Metric:", self._tuning_metric)
+
       num_possible_configs = ComputeNumPossibleConfigs(benchmark_params, h_params)
       num_tuning_rounds = min(num_possible_configs, self._num_tuning_rounds)
 
@@ -157,6 +161,7 @@ class BenchmarkGNNParDo(beam.DoFn):
                                                 tuning_metric_is_loss=self._tuning_metric_is_loss)
         val_metrics = benchmarker_out['val_metrics']
         test_metrics = benchmarker_out['test_metrics']
+        print("Test accuracy", test_metrics['accuracy'])
 
       else:
         configs = []
@@ -170,6 +175,7 @@ class BenchmarkGNNParDo(beam.DoFn):
           else:
             benchmark_params_product = list(GetCartesianProduct(benchmark_params))
           num_benchmark_configs = len(benchmark_params_product)
+          print("Num benchmark configs", num_benchmark_configs)
           if num_benchmark_configs > 0:
             num_tuning_rounds *= num_benchmark_configs
           if h_params is None:
@@ -203,16 +209,19 @@ class BenchmarkGNNParDo(beam.DoFn):
           benchmarker_out = benchmarker.Benchmark(element,
                                                   tuning_metric=self._tuning_metric,
                                                   tuning_metric_is_loss=self._tuning_metric_is_loss)
+          
           configs.append((benchmark_params_sample, h_params_sample))
           val_metrics_list.append(benchmarker_out['val_metrics'])
           test_metrics_list.append(benchmarker_out['test_metrics'])
 
         val_scores = [metrics[self._tuning_metric] for metrics in val_metrics_list]
         test_scores = [metrics[self._tuning_metric] for metrics in test_metrics_list]
+
         if self._tuning_metric_is_loss:
           best_tuning_round = np.argmin(val_scores)
         else:
           best_tuning_round = np.argmax(val_scores)
+
         benchmark_params_sample, h_params_sample = configs[best_tuning_round]
         output_data['%s__num_tuning_rounds' % benchmarker.GetModelName()] = num_tuning_rounds
         if self._save_tuning_results:
@@ -220,8 +229,9 @@ class BenchmarkGNNParDo(beam.DoFn):
           output_data['%s__val_scores' % benchmarker.GetModelName()] = val_scores
           output_data['%s__test_scores' % benchmarker.GetModelName()] = test_scores
 
-        val_metrics = val_metrics_list[best_tuning_round]
+        val_metrics = val_metrics_list[best_tuning_round] 
         test_metrics = test_metrics_list[best_tuning_round]
+        print("Test accuracy", test_metrics['accuracy'])
 
       # Return benchmark data for next beam stage.
 
