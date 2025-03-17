@@ -59,7 +59,6 @@ ENTRYPOINT="python3 /app/beam_benchmark_main.py \
   --output ${OUTPUT_PATH} \
   --write_intermediate ${SAVE_RESULTS}"
 
-
 # Remove orphaned containers before running
 docker-compose down --remove-orphans
 

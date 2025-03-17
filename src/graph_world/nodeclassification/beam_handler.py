@@ -104,9 +104,9 @@ class ComputeNodeClassificationMetrics(beam.DoFn):
       out['metrics'].update(NodeLabelMetrics(element['data'].graph,
                                              element['data'].graph_memberships,
                                              element['data'].node_features))
-    except:
+    except Exception as e:
       out['skipped'] = True
-      print(f'Failed to compute node classification metrics for sample id {sample_id}')
+      print(f'Failed to compute node classification metrics for sample id {sample_id}, \nException: {str(e)}', flush=True)
       logging.info(
            ('Failed to convert node classification metrics for sample id %d'), sample_id)
       return
@@ -155,9 +155,10 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
         buf = bytes(json.dumps(torchgeo_stats), 'utf-8')
         f.write(buf)
         f.close()
-    except:
+
+    except Exception as e:
       out['skipped'] = True
-      print(f'failed to convert {sample_id}')
+      print(f'failed to convert {sample_id} because \n{str(e)}')
       logging.info(
            ('Failed to convert nodeclassification_data to torchgeo'
             'for sample id %d'), sample_id)

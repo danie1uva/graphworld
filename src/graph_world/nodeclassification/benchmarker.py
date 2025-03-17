@@ -57,8 +57,7 @@ class NNNodeBenchmarker(Benchmarker):
     self._train_mask = train_mask
     self._val_mask = val_mask
     self._test_mask = test_mask
-    print(f'Train mask: {train_mask.sum()}, Val mask: {val_mask.sum()}, Test mask: {test_mask.sum()}')
-
+    
   def train_step(self, data):
     self._model.train()
     self._optimizer.zero_grad()  # Clear gradients.

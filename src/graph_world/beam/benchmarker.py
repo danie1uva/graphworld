@@ -141,12 +141,13 @@ class BenchmarkGNNParDo(beam.DoFn):
                           self._model_classes,
                           self._h_params):
       
-      print(f'Running class: {benchmarker_class}\nModel: {model_class}\nHyperparameters: {h_params}')
-      print("Tuning Rounds: ", self._num_tuning_rounds)   
+      print(f'Running class: {benchmarker_class}\nModel: {model_class}\nHyperparameters: {h_params}\nBenchmark Parameters: {benchmark_params}')
       print("Tuning Metric:", self._tuning_metric)
 
       num_possible_configs = ComputeNumPossibleConfigs(benchmark_params, h_params)
+      print("Num possible configs", num_possible_configs)
       num_tuning_rounds = min(num_possible_configs, self._num_tuning_rounds)
+      print("Num tuning rounds", num_tuning_rounds)
 
       if num_tuning_rounds == 1 or self._tuning_metric == '':
         benchmark_params_sample, h_params_sample = SampleModelConfig(benchmark_params,
@@ -186,6 +187,7 @@ class BenchmarkGNNParDo(beam.DoFn):
           if num_h_configs > 0:
             num_tuning_rounds *= num_h_configs
           full_product = True
+
         for i in range(num_tuning_rounds):
           if full_product:
             if num_benchmark_configs > 0:
@@ -201,6 +203,8 @@ class BenchmarkGNNParDo(beam.DoFn):
           else:
             benchmark_params_sample, h_params_sample = SampleModelConfig(benchmark_params,
                                                                          h_params)
+          print("Benchmark params sample", benchmark_params_sample)
+          print("H params sample", h_params_sample)
           benchmarker = benchmarker_class(element['generator_config'],
                                           model_class,
                                           benchmark_params_sample,
@@ -209,6 +213,8 @@ class BenchmarkGNNParDo(beam.DoFn):
           benchmarker_out = benchmarker.Benchmark(element,
                                                   tuning_metric=self._tuning_metric,
                                                   tuning_metric_is_loss=self._tuning_metric_is_loss)
+          
+          print('Val accuracy', benchmarker_out['val_metrics']['accuracy'])
           
           configs.append((benchmark_params_sample, h_params_sample))
           val_metrics_list.append(benchmarker_out['val_metrics'])
