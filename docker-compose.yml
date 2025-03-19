@@ -21,6 +21,7 @@ services:
     tty: true
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
+      - WANDB_API_KEY=159b6d0a1adbedc4c05f27c2f71b34a8ba8e10be
     image:
       graphworld:latest
     ports:

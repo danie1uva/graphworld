@@ -196,11 +196,11 @@ class NodeClassificationBeamHandler(GeneratorBeamHandler):
   def __init__(self, benchmarker_wrappers, generator_wrapper,
                num_tuning_rounds=1, tuning_metric='',
                tuning_metric_is_loss=False, num_train_per_class=20,
-               num_val=50, save_tuning_results=False):
+               num_val=50, save_tuning_results=False, early_stopping=250, weight_decay = .001):
     self._sample_do_fn = SampleNodeClassificationDatasetDoFn(generator_wrapper)
     self._benchmark_par_do = BenchmarkGNNParDo(
         benchmarker_wrappers, num_tuning_rounds, tuning_metric,
-        tuning_metric_is_loss, save_tuning_results)
+        tuning_metric_is_loss, save_tuning_results, early_stopping, weight_decay)  
     self._metrics_par_do = ComputeNodeClassificationMetrics()
     self._num_train_per_class = num_train_per_class
     self._num_val = num_val

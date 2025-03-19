@@ -96,8 +96,8 @@ class BenchmarkGNNParDo(beam.DoFn):
   # replace the alternate code below it, if we were using Python 3.7. See:
   #  - https://github.com/huggingface/transformers/issues/8453
   #  - https://github.com/huggingface/transformers/issues/8212
-  def __init__(self, benchmarker_wrappers, num_tuning_rounds, tuning_metric,
-               tuning_metric_is_loss=False, save_tuning_results=False):
+  def __init__(self, benchmarker_wrappers, num_tuning_rounds, tuning_metric, early_stopping = 250,
+               tuning_metric_is_loss=False, save_tuning_results=False, weight_decay = .001):
     # self._benchmarkers = [benchmarker_wrapper().GetBenchmarker() for
     #                       benchmarker_wrapper in benchmarker_wrappers]
     self._benchmarker_classes = [benchmarker_wrapper().GetBenchmarkerClass() for
@@ -114,6 +114,8 @@ class BenchmarkGNNParDo(beam.DoFn):
     self._tuning_metric = tuning_metric
     self._tuning_metric_is_loss = tuning_metric_is_loss
     self._save_tuning_results = save_tuning_results
+    self._early_stopping = early_stopping
+    self._weight_decay = weight_decay
 
   def SetOutputPath(self, output_path):
     self._output_path = output_path
@@ -156,10 +158,13 @@ class BenchmarkGNNParDo(beam.DoFn):
                                         model_class,
                                         benchmark_params_sample,
                                         h_params_sample,
-                                        element['torch_data'])
+                                        element['torch_data'],
+                                      )
         benchmarker_out = benchmarker.Benchmark(element,
                                                 tuning_metric=self._tuning_metric,
-                                                tuning_metric_is_loss=self._tuning_metric_is_loss)
+                                                tuning_metric_is_loss=self._tuning_metric_is_loss,
+                                                early_stopping=self._early_stopping,
+                                                )
         val_metrics = benchmarker_out['val_metrics']
         test_metrics = benchmarker_out['test_metrics']
         print("Test accuracy", test_metrics['accuracy'])
@@ -204,7 +209,7 @@ class BenchmarkGNNParDo(beam.DoFn):
             benchmark_params_sample, h_params_sample = SampleModelConfig(benchmark_params,
                                                                          h_params)
           print("Benchmark params sample", benchmark_params_sample)
-          print("H params sample", h_params_sample)
+          print("Hyperparams sample", h_params_sample)
           benchmarker = benchmarker_class(element['generator_config'],
                                           model_class,
                                           benchmark_params_sample,
@@ -212,10 +217,10 @@ class BenchmarkGNNParDo(beam.DoFn):
                                           element['torch_data'])
           benchmarker_out = benchmarker.Benchmark(element,
                                                   tuning_metric=self._tuning_metric,
-                                                  tuning_metric_is_loss=self._tuning_metric_is_loss)
-          
-          print('Val accuracy', benchmarker_out['val_metrics']['accuracy'])
-          
+                                                  tuning_metric_is_loss=self._tuning_metric_is_loss,
+                                                  early_stopping=self._early_stopping,
+                                                  )
+
           configs.append((benchmark_params_sample, h_params_sample))
           val_metrics_list.append(benchmarker_out['val_metrics'])
           test_metrics_list.append(benchmarker_out['test_metrics'])

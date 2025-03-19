@@ -1,0 +1,28 @@
+method: bayes
+metric:
+  name: val_accuracy
+  goal: maximize
+parameters:
+  lr:
+    distribution: uniform
+    min: 0.001
+    max: 0.5
+  dropout:
+    distribution: uniform
+    min: 0.0
+    max: 0.6
+  epochs:
+    distribution: categorical
+    values: [1000, 5000]
+  weight_decay:
+    distribution: uniform
+    min: 0
+    max: 0.002
+  hidden_channels:
+    distribution: categorical
+    values: [2, 4, 8, 16, 32]
+  num_layers:
+    distribution: categorical
+    values: [1, 2, 3, 4]
+  early_stopping:
+    value: 250 

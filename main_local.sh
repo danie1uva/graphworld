@@ -37,7 +37,7 @@ OUTPUT_PATH="/tmp/${TASK}/${GENERATOR}"
 rm -rf "${OUTPUT_PATH}"
 mkdir -p ${OUTPUT_PATH}
 
-# Add gin file string.
+# Build gin file string.
 GIN_FILES="/app/configs/${TASK}.gin "
 GIN_FILES="${GIN_FILES} /app/configs/${TASK}_generators/${GENERATOR}/default_setup.gin"
 GIN_FILES="${GIN_FILES} /app/configs/common_hparams/${TASK}.gin"
@@ -45,13 +45,14 @@ if [ ${RUN_MODE2} = true ]; then
   GIN_FILES="${GIN_FILES} /app/configs/${TASK}_generators/${GENERATOR}/optimal_model_hparams.gin"
 fi
 
-# Add gin param string.
+# Build gin parameter string.
 TASK_CLASS_NAME=$(get_task_class_name ${TASK})
 GIN_PARAMS="GeneratorBeamHandlerWrapper.nsamples=${NUM_SAMPLES}\
             ${TASK_CLASS_NAME}BeamHandler.num_tuning_rounds=${NUM_TUNING_ROUNDS}\
             ${TASK_CLASS_NAME}BeamHandler.save_tuning_results=${SAVE_TUNING_RESULTS}\
-            ${TASK_CLASS_NAME}BeamHandler.tuning_metric_is_loss=${TUNING_METRIC_IS_LOSS}"\
+            ${TASK_CLASS_NAME}BeamHandler.tuning_metric_is_loss=${TUNING_METRIC_IS_LOSS}"
 
+# Construct the entrypoint command.
 ENTRYPOINT="python3 /app/beam_benchmark_main.py \
   --runner DirectRunner \
   --gin_files ${GIN_FILES} \
@@ -59,7 +60,7 @@ ENTRYPOINT="python3 /app/beam_benchmark_main.py \
   --output ${OUTPUT_PATH} \
   --write_intermediate ${SAVE_RESULTS}"
 
-# Remove orphaned containers before running
+# Remove orphaned containers before running.
 docker-compose down --remove-orphans
 
 docker-compose run --rm --entrypoint "${ENTRYPOINT}" ${BUILD_NAME}
