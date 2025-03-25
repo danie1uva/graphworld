@@ -1,166 +1,31 @@
-Baseline_/NNNodeBaselineBenchmark.h_params = {
-    'alpha' : %ALPHA,
-}
-
 # GCN setup
 GCN_/NNNodeBenchmark.model_class = @GCN
 GCN_/NNNodeBenchmark.benchmark_params = {
     'epochs' : %EPOCHS,
-    'lr': %LR,
+    'patience': %PATIENCE
 }
+
 GCN_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
+    'in_channels' : %IN_CHANNELS,
     'hidden_channels' : %HIDDEN_CHANNELS,
     'num_layers' : %NUM_LAYERS,
     'dropout' : %DROPOUT,
-}
-
-# GraphSAGE setup
-GraphSAGE_/NNNodeBenchmark.model_class = @GraphSAGE
-GraphSAGE_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
     'lr': %LR,
-}
-GraphSAGE_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-}
-
-# GIN setup
-GIN_/NNNodeBenchmark.model_class = @GIN
-GIN_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-GIN_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-}
-
-# GAT setup
-GAT_/NNNodeBenchmark.model_class = @GAT
-GAT_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-GAT_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-    'heads' : %NUM_HEADS,
+    'weight_decay' : %WEIGHT_DECAY
 }
 
 # MLP setup
 MLP_/NNNodeBenchmark.model_class = @MLP
 MLP_/NNNodeBenchmark.benchmark_params = {
     'epochs' : %EPOCHS,
-    'lr': %LR,
+    'patience': %PATIENCE   
 }
+
 MLP_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
+    'in_channels' : %IN_CHANNELS,
     'hidden_channels' : %HIDDEN_CHANNELS,
     'num_layers' : %NUM_LAYERS,
     'dropout' : %DROPOUT,
-}
-
-# APPNP setup
-APPNP_/NNNodeBenchmark.model_class = @APPNP
-APPNP_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
     'lr': %LR,
-}
-APPNP_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'alpha': %ALPHA,
-    'iterations': %ITERATIONS,
-    'dropout' : %DROPOUT,
-}
-
-# SGC setup
-SGC_/NNNodeBenchmark.model_class = @SGC
-SGC_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-SGC_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'iterations': %ITERATIONS,
-    'dropout' : %DROPOUT,
-}
-
-
-# GATv2 setup
-GATv2_/NNNodeBenchmark.model_class = @GATv2
-GATv2_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-GATv2_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-    'heads' : %NUM_HEADS,
-}
-
-# ARMA setup
-ARMA_/NNNodeBenchmark.model_class = @ARMA
-ARMA_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-ARMA_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-}
-
-# FiLM setup
-FiLM_/NNNodeBenchmark.model_class = @FiLM
-FiLM_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-FiLM_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-}
-
-# SuperGAT setup
-SuperGAT_/NNNodeBenchmark.model_class = @SuperGAT
-SuperGAT_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-SuperGAT_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-    'heads' : %NUM_HEADS,
-}
-
-# Transformer setup
-Transformer_/NNNodeBenchmark.model_class = @Transformer
-Transformer_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'lr': %LR,
-}
-Transformer_/NNNodeBenchmark.h_params = {
-    'in_channels' : 16,
-    'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-    'heads' : %NUM_HEADS,
+    'weight_decay': %WEIGHT_DECAY
 }

@@ -13,3 +13,4 @@ pycairo
 seaborn
 ujson
 scikit-learn
+hyperopt

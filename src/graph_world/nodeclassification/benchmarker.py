@@ -36,11 +36,12 @@ class NNNodeBenchmarker(Benchmarker):
     super().__init__(generator_config, model_class, benchmark_params, h_params, torch_data)
     # remove meta entries from h_params
     self._epochs = benchmark_params['epochs']
+    self._patience = benchmark_params['patience']
     self._model = model_class(**h_params)
     # TODO(palowitch): make optimizer configurable.
     self._optimizer = torch.optim.Adam(self._model.parameters(),
-                                       lr=benchmark_params['lr'],
-                                       weight_decay=5e-4)
+                                       lr=h_params['lr'],
+                                       weight_decay=h_params['weight_decay'])
     self._criterion = torch.nn.CrossEntropyLoss()
     self._train_mask = None
     self._val_mask = None
@@ -117,6 +118,8 @@ class NNNodeBenchmarker(Benchmarker):
     best_val_metric = np.inf if tuning_metric_is_loss else -np.inf
     test_metrics = None
     best_val_metrics = None
+    early_stopping_count = 0
+
     for i in range(self._epochs):
       losses.append(float(self.train_step(data)))
       val_metrics = self.test(data, test_on_val=True)
@@ -125,6 +128,13 @@ class NNNodeBenchmarker(Benchmarker):
         best_val_metric = val_metrics[tuning_metric]
         best_val_metrics = copy.deepcopy(val_metrics)
         test_metrics = self.test(data, test_on_val=False)
+        early_stopping_count = 0
+      else:
+        early_stopping_count += 1
+        if early_stopping_count >= self._patience:
+          print(f'Early stopping at epoch {i}', flush=True)
+          break
+
 
     if test_metrics is None:
       test_metrics = self.test(data, test_on_val=False)

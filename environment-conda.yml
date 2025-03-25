@@ -1,0 +1,30 @@
+name: graphworld
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - graph-tool
+  - pip
+  - cython
+  - networkit
+  - "numpy>=1.21,<1.24"
+  - "scipy>=1.7.0,<1.10.0"
+  - absl-py
+  - gcsfs
+  - gin-config
+  - fsspec
+  - networkx
+  - notebook
+  - matplotlib
+  - pycairo
+  - seaborn
+  - ujson
+  - scikit-learn
+  - hyperopt
+  - pip:
+      - "torch==1.13.1 --find-links https://download.pytorch.org/whl/torch_stable.html"
+      - "torch-sparse --no-deps --find-links https://data.pyg.org/whl/torch-1.13.1+cpu.html"
+      - "torch-scatter --no-deps --find-links https://data.pyg.org/whl/torch-1.13.1+cpu.html"
+      - torch-geometric==2.2.0
+      - "apache-beam[gcp]"

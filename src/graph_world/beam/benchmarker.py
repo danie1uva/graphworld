@@ -22,237 +22,288 @@ import numpy as np
 
 from ..models.utils import ComputeNumPossibleConfigs, SampleModelConfig, GetCartesianProduct
 
+# Hyperopt for TPE-based Bayesian optimisation
+try:
+    from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
+except ImportError:
+    raise ImportError("Please install hyperopt (e.g. `pip install hyperopt`).")
 
 class Benchmarker(ABC):
+    """
+    Base class for training and testing a model. Override Benchmark() as needed.
+    """
 
-  def __init__(self, generator_config,
-               model_class=None, benchmark_params=None, h_params=None, torch_data=None):
-    self._model_name = model_class.__name__ if model_class is not None else ''
-    self._model_class = model_class
-    self._benchmark_params = benchmark_params
-    self._h_params = h_params
-    self.AdjustParams(generator_config, torch_data)
+    def __init__(self, generator_config,
+                 model_class=None, benchmark_params=None, h_params=None, torch_data=None):
+        self._model_name = model_class.__name__ if model_class is not None else ''
+        self._model_class = model_class
+        self._benchmark_params = benchmark_params
+        self._h_params = h_params
+        self.AdjustParams(generator_config, torch_data)
 
-  # Override this function if the input data affects the model architecture.
-  # See NNNodeBenchmarker for an example implementation.
-  def AdjustParams(self, generator_config, torch_data):
-    pass
+    def AdjustParams(self, generator_config, torch_data):
+        """
+        Override this function if the input data affects the model architecture.
+        """
+        pass
 
-  def GetModelName(self):
-    return self._model_name
+    def GetModelName(self):
+        return self._model_name
 
-  # Train and test the model.
-  # Arguments:
-  #   * element: output of the 'Convert to torchgeo' beam stage.
-  #   * output_path: where to save logs and data.
-  # Returns:
-  #   * named dict with keys/vals:
-  #      'losses': iterable of loss values over the epochs.
-  #      'test_metrics': dict of named test metrics for the benchmark run.
-  @abstractmethod
-  def Benchmark(self, element,
-                test_on_val: bool = False,
-                tuning_metric: str = None,
-                tuning_metric_is_loss: bool = False):
-    del element  # unused
-    del test_on_val  # unused
-    del tuning_metric  # unused
-    del tuning_metric_is_loss  # unused
-    return {'losses': [], 'test_metrics': {}}
+    @abstractmethod
+    def Benchmark(self, element,
+                  test_on_val: bool = False,
+                  tuning_metric: str = None,
+                  tuning_metric_is_loss: bool = False):
+        """
+        Train and test the model on the given element (e.g. data).
+        Returns a dict with at least 'losses' and 'test_metrics'.
+        """
+        del element  # unused
+        del test_on_val  # unused
+        del tuning_metric  # unused
+        del tuning_metric_is_loss  # unused
+        return {'losses': [], 'test_metrics': {}}
 
 
 class BenchmarkerWrapper(ABC):
+    """
+    Wraps a model and benchmark configuration so it can be passed around in Beam.
+    """
 
-  def __init__(self, model_class=None, benchmark_params=None, h_params=None):
-    self._model_class = model_class
-    self._benchmark_params = benchmark_params
-    self._h_params = h_params
+    def __init__(self, model_class=None, benchmark_params=None, h_params=None):
+        self._model_class = model_class
+        self._benchmark_params = benchmark_params
+        self._h_params = h_params
 
-  @abstractmethod
-  def GetBenchmarker(self):
-    return Benchmarker()
+    @abstractmethod
+    def GetBenchmarker(self):
+        return Benchmarker()
 
-  # These two functions would be unnecessary if we were using Python 3.7. See:
-  #  - https://github.com/huggingface/transformers/issues/8453
-  #  - https://github.com/huggingface/transformers/issues/8212
-  @abstractmethod
-  def GetBenchmarkerClass(self):
-    return Benchmarker
+    @abstractmethod
+    def GetBenchmarkerClass(self):
+        return Benchmarker
 
-  def GetModelClass(self):
-    return self._model_class
+    def GetModelClass(self):
+        return self._model_class
 
-  def GetModelHparams(self):
-    return self._h_params
+    def GetModelHparams(self):
+        return self._h_params
 
-  def GetBenchmarkParams(self):
-    return self._benchmark_params
-
-
+    def GetBenchmarkParams(self):
+        return self._benchmark_params
 
 class BenchmarkGNNParDo(beam.DoFn):
+    """
+    A Beam DoFn that runs TPE-based search over numeric or discrete hyperparameters.
+    """
 
-  # The commented lines here, and those in process, could be uncommented and
-  # replace the alternate code below it, if we were using Python 3.7. See:
-  #  - https://github.com/huggingface/transformers/issues/8453
-  #  - https://github.com/huggingface/transformers/issues/8212
-  def __init__(self, benchmarker_wrappers, num_tuning_rounds, tuning_metric,
-               tuning_metric_is_loss=False, save_tuning_results=False):
-    # self._benchmarkers = [benchmarker_wrapper().GetBenchmarker() for
-    #                       benchmarker_wrapper in benchmarker_wrappers]
-    self._benchmarker_classes = [benchmarker_wrapper().GetBenchmarkerClass() for
-                                 benchmarker_wrapper in benchmarker_wrappers]
-    self._model_classes = [benchmarker_wrapper().GetModelClass() for
-                                 benchmarker_wrapper in benchmarker_wrappers]
-    self._h_params = [benchmarker_wrapper().GetModelHparams() for
-                           benchmarker_wrapper in benchmarker_wrappers]
-    self._benchmark_params = [benchmarker_wrapper().GetBenchmarkParams() for
-                           benchmarker_wrapper in benchmarker_wrappers]
-    # /end alternate code.
-    self._output_path = None
-    self._num_tuning_rounds = num_tuning_rounds
-    self._tuning_metric = tuning_metric
-    self._tuning_metric_is_loss = tuning_metric_is_loss
-    self._save_tuning_results = save_tuning_results
+    def __init__(self, benchmarker_wrappers, num_tuning_rounds,
+                 tuning_metric, tuning_metric_is_loss=False, save_tuning_results=False):
+        """
+        benchmarker_wrappers: list of callables that instantiate the benchmarkers
+                              (or their classes).
+        num_tuning_rounds: number of TPE evaluations
+        tuning_metric: metric name (e.g. 'accuracy')
+        tuning_metric_is_loss: if True, lower is better; if False, we invert it for TPE
+        save_tuning_results: if True, store trial details in output_data
+        """
+        # Store references rather than objects for backward-compatibility
+        self._benchmarker_classes = [
+            wrapper().GetBenchmarkerClass() for wrapper in benchmarker_wrappers
+        ]
+        self._model_classes = [
+            wrapper().GetModelClass() for wrapper in benchmarker_wrappers
+        ]
+        self._benchmark_params = [
+            wrapper().GetBenchmarkParams() for wrapper in benchmarker_wrappers
+        ]
+        self._h_params = [
+            wrapper().GetModelHparams() for wrapper in benchmarker_wrappers
+        ]
 
-  def SetOutputPath(self, output_path):
-    self._output_path = output_path
+        self._output_path = None
+        self._num_tuning_rounds = num_tuning_rounds
+        self._tuning_metric = tuning_metric
+        self._tuning_metric_is_loss = tuning_metric_is_loss
+        self._save_tuning_results = save_tuning_results
 
-  def process(self, element):
-    output_data = {}
-    output_data.update(element['generator_config'])
-    output_data['marginal_param'] = element['marginal_param']
-    output_data['fixed_params'] = element['fixed_params']
-    output_data.update(element['metrics'])
-    output_data['skipped'] = element['skipped']
-    if 'target' in element:
-      output_data['target'] = element['target']
-    output_data['sample_id'] = element['sample_id']
+    def SetOutputPath(self, output_path):
+        self._output_path = output_path
 
-    if element['skipped']:
-      yield json.dumps(output_data)
+    def process(self, element):
+        """
+        element: a dict from earlier pipeline stages, e.g.:
+            {
+                'generator_config': {...},
+                'torch_data': ...,
+                'metrics': {...},
+                'skipped': bool,
+                'sample_id': ...,
+                ...
+            }
 
-    # for benchmarker in self._benchmarkers:
-    for (benchmarker_class,
-         benchmark_params,
-         model_class,
-         h_params) in zip(self._benchmarker_classes,
-                          self._benchmark_params,
-                          self._model_classes,
-                          self._h_params):
-      
-      print(f'Running class: {benchmarker_class}\nModel: {model_class}\nHyperparameters: {h_params}\nBenchmark Parameters: {benchmark_params}')
-      print("Tuning Metric:", self._tuning_metric)
+        Yields: JSON string of final results.
+        """
+        # 1) Prepare output data
+        output_data = {}
+        output_data.update(element.get('generator_config', {}))
+        output_data.update(element.get('metrics', {}))
+        output_data['marginal_param'] = element.get('marginal_param')
+        output_data['fixed_params'] = element.get('fixed_params')
+        output_data['skipped'] = element.get('skipped', False)
+        output_data['sample_id'] = element.get('sample_id')
 
-      num_possible_configs = ComputeNumPossibleConfigs(benchmark_params, h_params)
-      print("Num possible configs", num_possible_configs)
-      num_tuning_rounds = min(num_possible_configs, self._num_tuning_rounds)
-      print("Num tuning rounds", num_tuning_rounds)
+        if output_data['skipped']:
+            yield json.dumps(output_data)
 
-      if num_tuning_rounds == 1 or self._tuning_metric == '':
-        benchmark_params_sample, h_params_sample = SampleModelConfig(benchmark_params,
-                                                                     h_params)
-        benchmarker = benchmarker_class(element['generator_config'],
-                                        model_class,
-                                        benchmark_params_sample,
-                                        h_params_sample,
-                                        element['torch_data'])
-        benchmarker_out = benchmarker.Benchmark(element,
-                                                tuning_metric=self._tuning_metric,
-                                                tuning_metric_is_loss=self._tuning_metric_is_loss)
-        val_metrics = benchmarker_out['val_metrics']
-        test_metrics = benchmarker_out['test_metrics']
-        print("Test accuracy", test_metrics['accuracy'])
+        # 2) For each benchmarker in the list, run TPE-based search
+        for benchmarker_class, benchmark_params, model_class, h_params in zip(
+            self._benchmarker_classes,
+            self._benchmark_params,
+            self._model_classes,
+            self._h_params
+        ):
+            print(f"Running {benchmarker_class.__name__} with model {model_class}.")
+            print("Hyperparameters:", h_params)
+            print("Benchmark parameters:", benchmark_params)
 
-      else:
-        configs = []
-        val_metrics_list = []
-        test_metrics_list = []
-        full_product = False
-        if num_tuning_rounds == 0:
-          num_tuning_rounds = 1
-          if benchmark_params is None:
-            benchmark_params_product = []
-          else:
-            benchmark_params_product = list(GetCartesianProduct(benchmark_params))
-          num_benchmark_configs = len(benchmark_params_product)
-          print("Num benchmark configs", num_benchmark_configs)
-          if num_benchmark_configs > 0:
-            num_tuning_rounds *= num_benchmark_configs
-          if h_params is None:
-            h_params_product = []
-          else:
-            h_params_product = list(GetCartesianProduct(h_params))
-          num_h_configs = len(h_params_product)
-          if num_h_configs > 0:
-            num_tuning_rounds *= num_h_configs
-          full_product = True
+            # Decide how many tuning rounds
+            num_possible = ComputeNumPossibleConfigs(benchmark_params, h_params)
+            actual_rounds = min(num_possible, self._num_tuning_rounds)
+            print("Possible configs:", num_possible, "Using rounds:", actual_rounds)
 
-        for i in range(num_tuning_rounds):
-          if full_product:
-            if num_benchmark_configs > 0:
-              benchmark_index = math.floor(i / num_h_configs)
-              benchmark_params_sample = benchmark_params_product[benchmark_index]
+            # Single or zero round => skip TPE
+            if actual_rounds <= 1 or not self._tuning_metric:
+                bench_params_sample, hyperparams_sample = SampleModelConfig(benchmark_params, h_params)
+
+                # Instantiate and run training
+                benchmarker = benchmarker_class(
+                    element.get('generator_config'),
+                    model_class,
+                    bench_params_sample,
+                    hyperparams_sample,
+                    element.get('torch_data')
+                )
+                out = benchmarker.Benchmark(
+                    element,
+                    tuning_metric=self._tuning_metric,
+                    tuning_metric_is_loss=self._tuning_metric_is_loss
+                )
+                val_metrics = out.get('val_metrics', {})
+                test_metrics = out.get('test_metrics', {})
+
             else:
-              benchmark_params_sample = None
-            if num_h_configs > 0:
-              h_index = i % num_h_configs
-              h_params_sample = h_params_product[h_index]
-            else:
-              h_params_sample = None
-          else:
-            benchmark_params_sample, h_params_sample = SampleModelConfig(benchmark_params,
-                                                                         h_params)
-          print("Benchmark params sample", benchmark_params_sample)
-          print("H params sample", h_params_sample)
-          benchmarker = benchmarker_class(element['generator_config'],
-                                          model_class,
-                                          benchmark_params_sample,
-                                          h_params_sample,
-                                          element['torch_data'])
-          benchmarker_out = benchmarker.Benchmark(element,
-                                                  tuning_metric=self._tuning_metric,
-                                                  tuning_metric_is_loss=self._tuning_metric_is_loss)
-          
-          print('Val accuracy', benchmarker_out['val_metrics']['accuracy'])
-          
-          configs.append((benchmark_params_sample, h_params_sample))
-          val_metrics_list.append(benchmarker_out['val_metrics'])
-          test_metrics_list.append(benchmarker_out['test_metrics'])
+                # ---------- TPE-BASED BAYESIAN OPTIMISATION ----------
+                trials = Trials()
 
-        val_scores = [metrics[self._tuning_metric] for metrics in val_metrics_list]
-        test_scores = [metrics[self._tuning_metric] for metrics in test_metrics_list]
+                # Build search space from h_params
+                search_space = {}
+                for param_name, val in h_params.items():
+                    if isinstance(val, list):
+                        search_space[param_name] = hp.choice(param_name, val)
+                    elif isinstance(val, tuple) and len(val) == 2:
+                        low, high = val
+                        search_space[param_name] = hp.uniform(param_name, low, high)
+                    # adapt as needed for int ranges or log scale
 
-        if self._tuning_metric_is_loss:
-          best_tuning_round = np.argmin(val_scores)
-        else:
-          best_tuning_round = np.argmax(val_scores)
+                def objective(candidate):
+                    # Convert indices to actual values if using hp.choice
+                    final_hparams = {}
+                    for k, v in candidate.items():
+                        final_hparams[k] = v
 
-        benchmark_params_sample, h_params_sample = configs[best_tuning_round]
-        output_data['%s__num_tuning_rounds' % benchmarker.GetModelName()] = num_tuning_rounds
-        if self._save_tuning_results:
-          output_data['%s__configs' % benchmarker.GetModelName()] = configs
-          output_data['%s__val_scores' % benchmarker.GetModelName()] = val_scores
-          output_data['%s__test_scores' % benchmarker.GetModelName()] = test_scores
+                    # Sample benchmark_params if desired
+                    if benchmark_params is not None:
+                        bench_params_sample, _ = SampleModelConfig(benchmark_params, None)
+                    else:
+                        bench_params_sample = None
 
-        val_metrics = val_metrics_list[best_tuning_round] 
-        test_metrics = test_metrics_list[best_tuning_round]
-        print("Test accuracy", test_metrics['accuracy'])
+                    # Train with these hyperparams
+                    benchmarker = benchmarker_class(
+                        element.get('generator_config'),
+                        model_class,
+                        bench_params_sample,
+                        final_hparams,
+                        element.get('torch_data')
+                    )
+                    result = benchmarker.Benchmark(
+                        element,
+                        tuning_metric=self._tuning_metric,
+                        tuning_metric_is_loss=self._tuning_metric_is_loss
+                    )
+                    val_score = result.get('val_metrics', {}).get(self._tuning_metric, None)
+                    if val_score is None:
+                        val_score = 999999.0
 
-      # Return benchmark data for next beam stage.
+                    # Hyperopt minimises the loss => invert a "max" metric
+                    if not self._tuning_metric_is_loss:
+                        val_score = -val_score
 
-      for key, value in val_metrics.items():
-        output_data[f'{benchmarker.GetModelName()}__val_{key}'] = value
-      for key, value in test_metrics.items():
-        output_data[f'{benchmarker.GetModelName()}__test_{key}'] = value
+                    return {'loss': val_score, 'status': STATUS_OK}
+
+                best_params = fmin(
+                    fn=objective,
+                    space=search_space,
+                    algo=tpe.suggest,
+                    max_evals=actual_rounds,
+                    trials=trials
+                )
+
+                # Convert best param indices to real values
+                final_hparams = {}
+                for k, v in best_params.items():
+                    if isinstance(h_params[k], list):
+                        final_hparams[k] = h_params[k][v]
+                    else:
+                        final_hparams[k] = v
+
+                # Evaluate final config
+                if benchmark_params is not None:
+                    bench_params_sample, _ = SampleModelConfig(benchmark_params, None)
+                else:
+                    bench_params_sample = None
+
+                # Run the benchmark one last time
+                benchmarker = benchmarker_class(
+                    element.get('generator_config'),
+                    model_class,
+                    bench_params_sample,
+                    final_hparams,
+                    element.get('torch_data')
+                )
+                best_out = benchmarker.Benchmark(
+                    element,
+                    tuning_metric=self._tuning_metric,
+                    tuning_metric_is_loss=self._tuning_metric_is_loss
+                )
+
+                val_metrics = best_out.get('val_metrics', {})
+                test_metrics = best_out.get('test_metrics', {})
+
+                print("Best hyperparams:", final_hparams)
+                print("Best val metrics:", val_metrics)
+                print("Best test metrics:", test_metrics)
+
+                # If desired, store the trial details
+                if self._save_tuning_results:
+                    output_data[f'{benchmarker.GetModelName()}__hyperopt_trials'] = trials.results
 
 
-      if benchmark_params_sample is not None:
-        for key, value in benchmark_params_sample.items():
-          output_data[f'{benchmarker.GetModelName()}__train_{key}'] = value
+            # Collect final metrics
+            for key, value in val_metrics.items():
+                output_data[f'{benchmarker.GetModelName()}__val_{key}'] = value
+            for key, value in test_metrics.items():
+                output_data[f'{benchmarker.GetModelName()}__test_{key}'] = value
 
-      if h_params_sample is not None:
-        for key, value in h_params_sample.items():
-          output_data[f'{benchmarker.GetModelName()}__model_{key}'] = value
+            # Store final hyperparams used
+            # (either TPE best or single-run random sample)
+            chosen_hparams = locals().get("final_hparams", None) or locals().get("hyperparams_sample", {})
+            if chosen_hparams:
+                for k, v in chosen_hparams.items():
+                    output_data[f'{benchmarker.GetModelName()}__model_{k}'] = v
+            if locals().get("bench_params_sample", None):
+                for k, v in bench_params_sample.items():
+                    output_data[f'{benchmarker.GetModelName()}__train_{k}'] = v
 
-    yield json.dumps(output_data)
+        yield json.dumps(output_data)

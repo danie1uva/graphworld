@@ -301,7 +301,7 @@ class MLP(torch.nn.Module):
     """
     def __init__(self, in_channels: int, hidden_channels: int, num_layers: int,
                  out_channels: Optional[int] = None, dropout: float = 0.0,
-                 act: Optional[Callable] = ReLU(inplace=True)):
+                 act: Optional[Callable] = ReLU(inplace=True), **kwargs):
         super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
