@@ -2,6 +2,7 @@ import graph_world.models.basic_gnn
 import graph_world.nodeclassification.generator_wrappers
 
 GeneratorBeamHandlerWrapper.handler = @NodeClassificationBeamHandler()
+NodeClassificationBeamHandler.tuning_metric = "accuracy"
 
 NodeClassificationBeamHandler.benchmarker_wrappers = [
   @GCN_/NNNodeBenchmark,
