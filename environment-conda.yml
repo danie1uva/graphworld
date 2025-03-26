@@ -22,9 +22,3 @@ dependencies:
   - ujson
   - scikit-learn
   - hyperopt
-  - pip:
-      - "torch==1.13.1 --find-links https://download.pytorch.org/whl/torch_stable.html"
-      - "torch-sparse --no-deps --find-links https://data.pyg.org/whl/torch-1.13.1+cpu.html"
-      - "torch-scatter --no-deps --find-links https://data.pyg.org/whl/torch-1.13.1+cpu.html"
-      - torch-geometric==2.2.0
-      - "apache-beam[gcp]"

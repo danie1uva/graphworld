@@ -167,8 +167,7 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
 
     try:
       out['masks'] = get_label_masks(
-          torch_data.y, num_train_per_class=self._num_train_per_class,
-          num_val=self._num_val
+          torch_data.y
       )
 
 

@@ -1,9 +1,9 @@
 # GCN & GNN hyperparameter ranges
 IN_CHANNELS = [16]
-LR = (0.001, 0.5)
+LR = (0.001, 0.2)
 HIDDEN_CHANNELS = [2, 4, 8, 16, 32]
 NUM_LAYERS = [1, 2, 3, 4]
 DROPOUT = (0.0,0.6)
-EPOCHS = [1000]
+EPOCHS = [200]
 WEIGHT_DECAY = (0.0, 0.002)
-PATIENCE = [250]
+PATIENCE = [50]

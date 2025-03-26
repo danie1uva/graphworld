@@ -17,10 +17,12 @@ do
     esac
 done
 
-# Set output path (you can change this if needed)
 # Get the directory where this script resides
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-OUTPUT_PATH="${SCRIPT_DIR}/${TASK}/${GENERATOR}"
+# Get the parent directory (assumed to contain the scratch folder)
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+# Set output path in the scratch folder
+OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/${TASK}/${GENERATOR}"
 
 rm -rf "${OUTPUT_PATH}"
 mkdir -p "${OUTPUT_PATH}"

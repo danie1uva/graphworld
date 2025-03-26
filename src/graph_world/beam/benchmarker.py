@@ -195,7 +195,6 @@ class BenchmarkGNNParDo(beam.DoFn):
 
             else:
                 # ---------- TPE-BASED BAYESIAN OPTIMISATION ----------
-                trials = Trials()
 
                 # Build search space from h_params
                 search_space = {}
@@ -205,25 +204,16 @@ class BenchmarkGNNParDo(beam.DoFn):
                     elif isinstance(val, tuple) and len(val) == 2:
                         low, high = val
                         search_space[param_name] = hp.uniform(param_name, low, high)
-                    # adapt as needed for int ranges or log scale
+
+                bench_params_sample, _ = SampleModelConfig(benchmark_params, None)
 
                 def objective(candidate):
-                    # Convert indices to actual values if using hp.choice
-                    final_hparams = {}
-                    for k, v in candidate.items():
-                        final_hparams[k] = v
+                    final_hparams = candidate.copy()
 
-                    # Sample benchmark_params if desired
-                    if benchmark_params is not None:
-                        bench_params_sample, _ = SampleModelConfig(benchmark_params, None)
-                    else:
-                        bench_params_sample = None
-
-                    # Train with these hyperparams
                     benchmarker = benchmarker_class(
                         element.get('generator_config'),
                         model_class,
-                        bench_params_sample,
+                        bench_params_sample, 
                         final_hparams,
                         element.get('torch_data')
                     )
@@ -232,23 +222,39 @@ class BenchmarkGNNParDo(beam.DoFn):
                         tuning_metric=self._tuning_metric,
                         tuning_metric_is_loss=self._tuning_metric_is_loss
                     )
-                    val_score = result.get('val_metrics', {}).get(self._tuning_metric, None)
-                    if val_score is None:
-                        val_score = 999999.0
+                    val_score = result.get('val_metrics', {}).get(self._tuning_metric, 999999.0)
 
-                    # Hyperopt minimises the loss => invert a "max" metric
-                    if not self._tuning_metric_is_loss:
-                        val_score = -val_score
+                    return {'loss': -val_score if not self._tuning_metric_is_loss else val_score, 'status': STATUS_OK}
+                
+                tuning_patience = 10  # rounds without significant improvement
+                min_delta = 0.05  # minimal meaningful improvement threshold
+                best_loss = float('inf')
+                no_improvement_rounds = 0
+                max_evals = actual_rounds
+                trials = Trials()
 
-                    return {'loss': val_score, 'status': STATUS_OK}
+                for i in range(max_evals):
+                    params = fmin(
+                        fn=objective,
+                        space=search_space,
+                        algo=tpe.suggest,
+                        max_evals=i + 1,
+                        trials=trials,
+                        verbose=0
+                    )
+                    current_loss = trials.results[-1]['loss']
 
-                best_params = fmin(
-                    fn=objective,
-                    space=search_space,
-                    algo=tpe.suggest,
-                    max_evals=actual_rounds,
-                    trials=trials
-                )
+                    improvement = best_loss - current_loss
+                    if improvement > min_delta:
+                        best_loss = current_loss
+                        no_improvement_rounds = 0
+                        best_params = params 
+                    else:
+                        no_improvement_rounds += 1
+
+                    if no_improvement_rounds >= tuning_patience:
+                        print(f"Early stopping triggered after {i+1} evaluations.")
+                        break
 
                 # Convert best param indices to real values
                 final_hparams = {}
@@ -257,12 +263,6 @@ class BenchmarkGNNParDo(beam.DoFn):
                         final_hparams[k] = h_params[k][v]
                     else:
                         final_hparams[k] = v
-
-                # Evaluate final config
-                if benchmark_params is not None:
-                    bench_params_sample, _ = SampleModelConfig(benchmark_params, None)
-                else:
-                    bench_params_sample = None
 
                 # Run the benchmark one last time
                 benchmarker = benchmarker_class(

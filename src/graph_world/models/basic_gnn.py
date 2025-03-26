@@ -29,8 +29,6 @@ from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 
 from torch_geometric.nn.conv import APPNP as APPNPConv
 
-from hgcn.layers.hyp_layers import HyperbolicGraphConvolution as HGCNConv
-
 class BasicGNN(torch.nn.Module):
     r"""An abstract class for implementing basic GNN models.
 
@@ -498,49 +496,4 @@ class SuperGAT(BasicGNN):
             SuperGATConv(in_channels, out_channels, dropout=dropout, **kwargs))
         for _ in range(1, num_layers):
             self.convs.append(SuperGATConv(hidden_channels, out_channels, **kwargs))
-
-@gin.configurable
-class HGCN(BasicGNN):
-    r"""Hyperbolic Graph Convolutional Network, based on
-    "Hyperbolic Graph Convolutional Networks" by Chami et al.
-
-    Args:
-        in_channels (int): Size of each input sample.
-        hidden_channels (int): Size of each hidden sample.
-        num_layers (int): Number of message passing layers.
-        out_channels (int, optional): Final output size; if not provided, equals hidden_channels.
-        dropout (float, optional): Dropout probability.
-        act (Callable, optional): Non-linear activation (default: Tanh, which is common in hyperbolic models).
-        norm (torch.nn.Module, optional): Normalisation operator.
-        jk (str, optional): Jumping Knowledge mode.
-        c (float, optional): Curvature parameter for the hyperbolic space.
-        manifold (optional): Manifold instance to use (if None, a default is used).
-        use_bias (bool, optional): Whether to use bias in the linear mappings.
-        use_att (bool, optional): Whether to use attention in aggregation.
-        local_agg (bool, optional): Whether to use a local aggregation scheme.
-        **kwargs: Additional arguments forwarded to HGCNConv.
-    """
-    def __init__(self, in_channels: int, hidden_channels: int, num_layers: int,
-                 out_channels: Optional[int] = None, dropout: float = 0.0,
-                 act: Optional[Callable] = Tanh(), norm: Optional[torch.nn.Module] = None, jk: str = 'last',
-                 c: float = 1.0, manifold=None, use_bias: bool = True,
-                 use_att: bool = False, local_agg: bool = False, **kwargs):
-        super().__init__(in_channels, hidden_channels, num_layers,
-                         out_channels, dropout, act, norm, jk)
-        
-        # If no manifold is provided, set a default (adjust this import as needed).
-        if manifold is None:
-            from ...hgcn.manifolds import Hyperboloid  # Ensure you have a default manifold implementation.
-            manifold = Hyperboloid()
             
-        # Initialize the hyperbolic layers with the extra hyperparameters.
-        self.convs.append(
-            HGCNConv(manifold, in_channels, hidden_channels, c_in=c, c_out=c, dropout=dropout,
-                     act=act, use_bias=use_bias, use_att=use_att, local_agg=local_agg, **kwargs)
-        )
-        for _ in range(1, num_layers):
-            self.convs.append(
-                HGCNConv(manifold, hidden_channels, hidden_channels, c_in=c, c_out=c, dropout=dropout,
-                         act=act, use_bias=use_bias, use_att=use_att, local_agg=local_agg, **kwargs)
-            )
-
