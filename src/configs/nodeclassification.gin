@@ -3,6 +3,7 @@ import graph_world.nodeclassification.generator_wrappers
 
 GeneratorBeamHandlerWrapper.handler = @NodeClassificationBeamHandler()
 NodeClassificationBeamHandler.tuning_metric = "accuracy"
+NodeClassificationBeamHandler.tuning_metric_is_loss = False
 
 NodeClassificationBeamHandler.benchmarker_wrappers = [
   @GCN_/NNNodeBenchmark,

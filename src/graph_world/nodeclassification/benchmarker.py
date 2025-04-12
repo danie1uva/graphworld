@@ -132,7 +132,7 @@ class NNNodeBenchmarker(Benchmarker):
       else:
         early_stopping_count += 1
         if early_stopping_count >= self._patience:
-          print(f'Early stopping at epoch {i}', flush=True)
+          print(f'Early stopping at epoch {i} after exceeding patience of {self._patience}', flush=True)
           break
 
 
