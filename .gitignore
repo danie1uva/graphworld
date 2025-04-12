@@ -5,3 +5,4 @@
 *graph_gen
 *src/hgcn
 *nodeclassification/sbm
+*src/meta_classifier/wandb
