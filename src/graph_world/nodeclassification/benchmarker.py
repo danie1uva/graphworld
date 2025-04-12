@@ -119,7 +119,6 @@ class NNNodeBenchmarker(Benchmarker):
     test_metrics = None
     best_val_metrics = None
     early_stopping_count = 0
-
     for i in range(self._epochs):
       losses.append(float(self.train_step(data)))
       val_metrics = self.test(data, test_on_val=True)
@@ -127,7 +126,6 @@ class NNNodeBenchmarker(Benchmarker):
           (not tuning_metric_is_loss and val_metrics[tuning_metric] > best_val_metric)):
         best_val_metric = val_metrics[tuning_metric]
         best_val_metrics = copy.deepcopy(val_metrics)
-        test_metrics = self.test(data, test_on_val=False)
         early_stopping_count = 0
       else:
         early_stopping_count += 1
