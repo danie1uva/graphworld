@@ -1,63 +1,60 @@
-# --- Graph Size ---
-# Varying size tests scalability and potential different optimal model depths.
+SBMSamplerSpec = [
+  @nvertex/ParamSamplerSpec(),
+  @avg_degree/ParamSamplerSpec(),
+  @feature_center_distance/ParamSamplerSpec(),
+  @feature_dim/ParamSamplerSpec(),
+  @edge_center_distance/ParamSamplerSpec(),
+  @edge_feature_dim/ParamSamplerSpec(),
+  @p_to_q_ratio/ParamSamplerSpec(),
+  @num_clusters/ParamSamplerSpec(),
+  @cluster_size_slope/ParamSamplerSpec(),
+  @power_exponent/ParamSamplerSpec(),
+  @min_deg/ParamSamplerSpec()
+]
+
 nvertex/ParamSamplerSpec.name = "nvertex"
-nvertex/ParamSamplerSpec.min_val = 128  # Minimum from original spec
-nvertex/ParamSamplerSpec.max_val = 1024  # Maximum from original spec
+nvertex/ParamSamplerSpec.min_val = 128
+nvertex/ParamSamplerSpec.max_val = 1024
 
-# --- Community Structure Strength (Homophily) ---
-# This is critical. Ranges from almost random (1.0) to very strong communities (16.0).
 p_to_q_ratio/ParamSamplerSpec.name = "p_to_q_ratio"
-p_to_q_ratio/ParamSamplerSpec.min_val = 1.0  # Weak/no structure signal
-p_to_q_ratio/ParamSamplerSpec.max_val = 16.0 # Very strong structure signal
+p_to_q_ratio/ParamSamplerSpec.min_val = 1.0
+p_to_q_ratio/ParamSamplerSpec.max_val = 6.0
 
-# --- Graph Density ---
-# Controls how many neighbors nodes have on average. Impacts message passing.
 avg_degree/ParamSamplerSpec.name = "avg_degree"
-avg_degree/ParamSamplerSpec.min_val = 4.0  # Ensure reasonable connectivity (avoid too many disconnected nodes)
-avg_degree/ParamSamplerSpec.max_val = 32.0 # Reasonably dense graphs
+avg_degree/ParamSamplerSpec.min_val = 2.0
+avg_degree/ParamSamplerSpec.max_val = 16.0
 
-# --- Node Feature Dimensionality ---
-# Keeping this fixed as requested for now.
+# We must have min_val = max_val = in_channels for all models here,
+# until we dynamically pass the data's feature dimension within the
+# benchmarker ParDo.
 feature_dim/ParamSamplerSpec.name = "feature_dim"
-feature_dim/ParamSamplerSpec.min_val = 16
-feature_dim/ParamSamplerSpec.max_val = 16
+feature_dim/ParamSamplerSpec.min_val = 16.0
+feature_dim/ParamSamplerSpec.max_val = 16.0
 
-# --- Node Feature Informativeness ---
-# Critical. Controls how separable classes are based *only* on features.
 feature_center_distance/ParamSamplerSpec.name = "feature_center_distance"
-feature_center_distance/ParamSamplerSpec.min_val = 0.0  # Features are useless for classification
-feature_center_distance/ParamSamplerSpec.max_val = 5.0  # Features are highly informative
+feature_center_distance/ParamSamplerSpec.min_val = 0.0
+feature_center_distance/ParamSamplerSpec.max_val = 2.5
 
-# --- Edge Features (Keeping fixed as less critical for standard GCN) ---
 edge_center_distance/ParamSamplerSpec.name = "edge_center_distance"
-edge_center_distance/ParamSamplerSpec.min_val = 2.0
-edge_center_distance/ParamSamplerSpec.max_val = 2.0
+edge_center_distance/ParamSamplerSpec.min_val = 1.0
+edge_center_distance/ParamSamplerSpec.max_val = 1.0
 
 edge_feature_dim/ParamSamplerSpec.name = "edge_feature_dim"
-edge_feature_dim/ParamSamplerSpec.min_val = 2.0
-edge_feature_dim/ParamSamplerSpec.max_val = 2.0
+edge_feature_dim/ParamSamplerSpec.min_val = 1.0
+edge_feature_dim/ParamSamplerSpec.max_val = 1.0
 
-# --- Number of Classes ---
-# Varying the number of communities/classes.
 num_clusters/ParamSamplerSpec.name = "num_clusters"
-num_clusters/ParamSamplerSpec.min_val = 2.0   # Minimum number of classes
-num_clusters/ParamSamplerSpec.max_val = 10.0  # More classes, potentially harder task
+num_clusters/ParamSamplerSpec.min_val = 2.0
+num_clusters/ParamSamplerSpec.max_val = 9.0
 
-# --- Class Balance ---
-# Controls if classes have similar sizes or are skewed.
 cluster_size_slope/ParamSamplerSpec.name = "cluster_size_slope"
-cluster_size_slope/ParamSamplerSpec.min_val = 0.0  # Perfectly balanced classes
-cluster_size_slope/ParamSamplerSpec.max_val = 1.0  # Potentially imbalanced classes
+cluster_size_slope/ParamSamplerSpec.min_val = 0.0
+cluster_size_slope/ParamSamplerSpec.max_val = 1.0
 
-# --- Degree Distribution Shape ---
-# Controls the heterogeneity of node degrees (regular vs. scale-free).
-# Avoid 1.0 due to the division-by-zero issue.
 power_exponent/ParamSamplerSpec.name = "power_exponent"
-power_exponent/ParamSamplerSpec.min_val = 0.2  # More scale-free like (high heterogeneity)
-power_exponent/ParamSamplerSpec.max_val = 0.99 # Closer to uniform/less heterogeneity (approaching the problematic gamma=1 boundary)
+power_exponent/ParamSamplerSpec.min_val = .2
+power_exponent/ParamSamplerSpec.max_val = .9
 
-# --- Minimum Degree Constraint ---
-# Ensures nodes have at least a few connections.
 min_deg/ParamSamplerSpec.name = "min_deg"
-min_deg/ParamSamplerSpec.min_val = 2   # Standard minimum
-min_deg/ParamSamplerSpec.max_val = 10  # Allow for scenarios where even minimum degree is higher
+min_deg/ParamSamplerSpec.min_val = 2
+min_deg/ParamSamplerSpec.max_val = 2

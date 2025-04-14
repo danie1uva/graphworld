@@ -149,67 +149,30 @@ def get_kclass_masks(nodeclassification_data: NodeClassificationDataset,
 
 
 def get_label_masks(y: torch.Tensor,
-                    train_ratio: float = 0.7,
-                    val_ratio: float = 0.2,
-                    test_ratio: float = 0.1,
+                    num_train_per_class: int = 20, num_val: int = 500,
                     random_seed: int = 12345) -> \
-    Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-  # Ensure the ratios sum to 1.
-  assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1"
+  Tuple[List[bool], List[bool], List[bool]]:
   random_gen = torch.Generator()
   random_gen.manual_seed(random_seed)
+  classes = set(y.numpy())
   num_samples = y.size(0)
   train_mask = torch.zeros(num_samples, dtype=bool)
-  val_mask = torch.zeros(num_samples, dtype=bool)
-  test_mask = torch.zeros(num_samples, dtype=bool)
-  classes = set(y.numpy())
-  
   for c in classes:
     idx = (y == c).nonzero(as_tuple=False).view(-1)
-    # Shuffle indices for this class.
-    perm = torch.randperm(idx.size(0), generator=random_gen)
-    idx = idx[perm]
-    n = idx.size(0)
-    # If there are too few samples (e.g. <3) assign all to training.
-    if n < 3:
-      train_mask[idx] = True
-      continue
-    # Compute split counts.
-    n_train = max(1, int(round(train_ratio * n)))
-    n_val = max(1, int(round(val_ratio * n)))
-    if n_train + n_val >= n:
-      # Ensure at least one sample goes to test.
-      if n > 2:
-        n_train = n - 2
-        n_val = 1
-      else:
-        n_train = n
-        n_val = 0
-    n_test = n - n_train - n_val
-    # As a safety check, force at least one sample in test if possible.
-    if n_test < 1 and n >= 3:
-      n_test = 1
-      n_val = n - n_train - n_test
-    train_mask[idx[:n_train]] = True
-    val_mask[idx[n_train:n_train+n_val]] = True
-    test_mask[idx[n_train+n_val:]] = True
-  
-  # Ensure that the training set contains at least two classes.
-  train_classes = set(y[train_mask].numpy())
-  if len(train_classes) < 2:
-    missing = classes - train_classes
-    # Try to find one sample for each missing class in the validation set and move it.
-    for c in missing:
-      candidate_idx = (y == c).nonzero(as_tuple=False).view(-1)
-      # Find candidates that are in validation.
-      for idx_val in candidate_idx:
-        if val_mask[idx_val]:
-          train_mask[idx_val] = True
-          val_mask[idx_val] = False
-          train_classes = set(y[train_mask].numpy())
-          if len(train_classes) >= 2:
-            break
-      if len(train_classes) >= 2:
-        break
+    idx = idx[
+        torch.randperm(idx.size(0), generator=random_gen)[:num_train_per_class]]
+    train_mask[idx] = True
 
+  remaining = (~train_mask).nonzero(as_tuple=False).view(-1)
+  remaining = remaining[torch.randperm(remaining.size(0))]
+  if remaining.size(0) < num_val - 10:  # ensure at least 10 in test set
+    num_val = remaining.size(0) - 10
+  if num_val < 10:  # ensure at least 10 in val set
+    raise RuntimeError("set num_val lower, or increase number of nodes")
+
+  val_mask = torch.zeros(num_samples, dtype=bool)
+  val_mask[remaining[:num_val]] = True
+
+  test_mask = torch.zeros(num_samples, dtype=bool)
+  test_mask[remaining[num_val:]] = True
   return train_mask, val_mask, test_mask
