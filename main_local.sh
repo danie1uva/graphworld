@@ -22,7 +22,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # Get the parent directory (assumed to contain the scratch folder)
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 # Set output path in the scratch folder
-OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/testing_with_fixed_graph"
+OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/smaller_graphs_smaller_train_set_size_harder_graph_gen"
 
 rm -rf "${OUTPUT_PATH}"
 mkdir -p "${OUTPUT_PATH}"

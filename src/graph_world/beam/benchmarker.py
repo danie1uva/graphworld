@@ -196,8 +196,6 @@ class BenchmarkGNNParDo(beam.DoFn):
 
             else:
                 # ---------- TPE-BASED BAYESIAN OPTIMISATION ----------
-
-                # Build search space from h_params
                 search_space = {}
                 for param_name, val in h_params.items():
                     if isinstance(val, list):
@@ -208,147 +206,102 @@ class BenchmarkGNNParDo(beam.DoFn):
 
                 bench_params_sample, _ = SampleModelConfig(benchmark_params, None)
 
-                # Define the objective function for hyperopt
                 def objective(candidate_hparams):
-                    """
-                    Objective function for hyperopt to minimize.
-                    Takes candidate hyperparameters, runs the benchmark, returns loss and results.
-                    """
-                    # candidate_hparams already contains the actual values selected by hyperopt
-                    # (no need for index lookup here like in the post-processing of hp.choice before)
+                    # ... (objective function definition as before, minimal comments inside ok) ...
+                    # ... (it should return {'loss': ..., 'status': ..., 'attachments': {'full_result': ...}}) ...
                     final_hparams = candidate_hparams.copy()
-
                     try:
-                        # Instantiate the benchmarker with the candidate hyperparameters
                         benchmarker = benchmarker_class(
-                            element.get('generator_config'),
-                            model_class,
-                            bench_params_sample, # Using the fixed sample
-                            final_hparams,
-                            element.get('torch_data')
+                            element.get('generator_config'), model_class,
+                            bench_params_sample, final_hparams, element.get('torch_data')
                         )
-
-                        # Run the benchmark
                         result = benchmarker.Benchmark(
-                            element,
-                            tuning_metric=self._tuning_metric,
+                            element, tuning_metric=self._tuning_metric,
                             tuning_metric_is_loss=self._tuning_metric_is_loss
                         )
-
-                        # Extract the validation score to be optimized
-                        # Use a high value (infinity) if metric not found, suitable for minimization
                         val_score = result.get('val_metrics', {}).get(self._tuning_metric, float('inf'))
-
-                        # Calculate the loss for hyperopt (always minimization)
-                        # If the metric is like accuracy (higher is better), negate it
                         loss = -val_score if not self._tuning_metric_is_loss else val_score
-
                         if loss == float('inf'):
-                            print(f"Warning: Tuning metric '{self._tuning_metric}' not found in val_metrics for params: {final_hparams}. Treating as failure.")
+                            print(f"Warning: Tuning metric '{self._tuning_metric}' not found. Params: {final_hparams}.")
                             return {'loss': loss, 'status': STATUS_FAIL, 'attachments': {'full_result': result}}
-
-                        # Return results - use 'attachments' for extra data hyperopt doesn't strictly need
-                        return {
-                            'loss': loss,
-                            'status': STATUS_OK,
-                            'attachments': { # Store full results here to retrieve later
-                                'full_result': result
-                            }
-                        }
-
+                        return {'loss': loss, 'status': STATUS_OK, 'attachments': {'full_result': result}}
                     except Exception as e:
                         import traceback
-                        print(f"ERROR during benchmarking trial with params: {final_hparams}")
-                        print(traceback.format_exc())
-                        # Report failure to hyperopt
-                        return {
-                            'loss': float('inf'), # Ensure failed trials aren't considered 'best'
-                            'status': STATUS_FAIL,
-                            'attachments': {'error': str(e)}
-                        }
+                        print(f"ERROR during trial. Params: {final_hparams}\n{traceback.format_exc()}")
+                        return {'loss': float('inf'), 'status': STATUS_FAIL, 'attachments': {'error': str(e)}}
 
-                # Initialize the Trials object to store history
                 trials = Trials()
+                print(f"Starting TPE for {actual_rounds} rounds...")
 
-                print(f"Starting Bayesian Optimization with TPE for {self._num_tuning_rounds} rounds...")
-
-                # Run the optimization using fmin
-                # fmin will manage the loop internally for num_tuning_rounds evaluations
                 best_raw_params = fmin(
-                    fn=objective,            # The function to minimize
-                    space=search_space,      # The hyperparameter space
-                    algo=tpe.suggest,        # The TPE algorithm
-                    max_evals=self._num_tuning_rounds, # The total number of evaluations
-                    trials=trials,           # The object to store trial results
-                    verbose=1                # Set >0 to see hyperopt progress (optional)
+                    fn=objective, space=search_space, algo=tpe.suggest,
+                    max_evals=actual_rounds, # Use actual_rounds based on space size vs budget
+                    trials=trials, verbose=0
                 )
-
                 print("\nOptimization finished.")
 
-                # --- Post-Optimization ---
+                try:
+                     best_final_hparams = space_eval(search_space, best_raw_params)
+                     print(f"Best hyperparams evaluated: {best_final_hparams}")
+                except Exception as e:
+                     print(f"Error during space_eval: {e}. Cannot determine best hyperparameters.")
+                     best_final_hparams = None
+                     val_metrics = {} # Ensure these are defined for aggregation
+                     test_metrics = {}
+                     continue # Skip final run and aggregation for this model
 
-                # `best_raw_params` contains the raw values (e.g., indices for hp.choice) found by fmin.
-                # Use `space_eval` to convert them back to the actual parameter values.
-                best_final_hparams = space_eval(search_space, best_raw_params)
-                chosen_hparams = best_final_hparams
+                # Since 'attachments' with full results aren't reliably retrieved from trials.best_trial,
+                # re-run the benchmark once using the best found hyperparameters.
+                print("\nRe-running benchmark with best hyperparameters...")
+                val_metrics = {}
+                test_metrics = {}
+                if best_final_hparams is not None:
+                    try:
+                        final_benchmarker = benchmarker_class(
+                            element.get('generator_config'), model_class,
+                            bench_params_sample, best_final_hparams, element.get('torch_data')
+                        )
+                        best_out = final_benchmarker.Benchmark(
+                             element, tuning_metric=self._tuning_metric,
+                             tuning_metric_is_loss=self._tuning_metric_is_loss
+                        )
+                        val_metrics = best_out.get('val_metrics', {})
+                        test_metrics = best_out.get('test_metrics', {})
+                        print("Final run validation metrics:", val_metrics)
+                        print("Final run test metrics:", test_metrics) # Optional
+                    except Exception as e:
+                        print(f"ERROR during final benchmark run. Params: {best_final_hparams}")
+                        # Metrics remain empty
 
-                # Find the best trial results from the Trials object
-                # `trials.best_trial` holds information about the trial with the minimum loss
-                best_trial_info = trials.best_trial
-
-                # --- Add Debug Print ---
-                print("DEBUG: best_trial_info:", best_trial_info)
-                # --- End Debug Print ---
-
-                if best_trial_info and best_trial_info['result']['status'] == STATUS_OK:
-                    # Extract the full results stored in attachments during the best trial run
-                    best_result_dict = best_trial_info['attachments']['full_result']
-                    best_loss = best_trial_info['result']['loss']
-
-                    val_metrics = best_result_dict.get('val_metrics', {})
-                    test_metrics = best_result_dict.get('test_metrics', {}) # Evaluate test set cautiously
-
-                    print(f"Best hyperparams found (loss={best_loss:.4f}):")
-                    print(best_final_hparams)
-                    print("Best trial's validation metrics:")
-                    print(val_metrics)
-                    # Be mindful about reporting test metrics obtained during hyperparameter search
-                    # It's best practice to retrain the final model on train+val and evaluate on test once
-                    print("Best trial's test metrics (use with caution):")
-                    print(test_metrics)
-
-                    # Assign output for external use if needed (replace 'best_out' logic)
-                    best_out = best_result_dict
-
-                else:
-                    print("No successful trials completed or an issue occurred finding the best trial.")
-                    best_out = {} # Assign empty dict or handle error
-                    val_metrics = {}
-                    test_metrics = {}
-
-                # If desired, store the trial details (unchanged)
                 if self._save_tuning_results:
-                    # Need a way to get the model name - either pass it or instantiate benchmarker briefly
-                    temp_benchmarker_for_name = benchmarker_class(None, model_class, None, None, None) # Adjust as needed
-                    model_name = temp_benchmarker_for_name.GetModelName()
-                    # Store results keyed by model name, using the full trials object
-                    output_data[f'{model_name}__hyperopt_trials'] = trials # Store the whole object or trials.results
+                    model_name_for_saving = model_class.__name__
+                    output_data[f'{model_name_for_saving}__hyperopt_trials'] = trials
 
+            # --- Aggregation ---
+            model_name = model_class.__name__
 
+            if actual_rounds <= 1 or not self._tuning_metric:
+                chosen_hparams = locals().get("hyperparams_sample", {})
+                chosen_bench_params = locals().get("bench_params_sample", {})
+                # val/test metrics already assigned in the 'if' branch's locals() scope
+                val_metrics = locals().get("val_metrics", {})
+                test_metrics = locals().get("test_metrics", {})
+            else: # TPE branch
+                chosen_hparams = best_final_hparams if best_final_hparams is not None else {}
+                chosen_bench_params = bench_params_sample
+                # val_metrics/test_metrics assigned from the re-run block
 
-            # Collect final metrics
-            model_name = model_class.__name__ # Get name directly from class
             for key, value in val_metrics.items():
                 output_data[f'{model_name}__val_{key}'] = value
             for key, value in test_metrics.items():
                 output_data[f'{model_name}__test_{key}'] = value
 
-            # Store final hyperparams used
-            if chosen_hparams: # Check if dict is not empty/None
+            if chosen_hparams:
                 for k, v in chosen_hparams.items():
-                    output_data[f'{model_name}__model_{k}'] = v # Use model_name from Fix 1
-            if bench_params_sample: # Check if dict is not empty/None
-                for k, v in bench_params_sample.items():
-                    output_data[f'{model_name}__train_{k}'] = v # Use model_name from Fix 1
+                    output_data[f'{model_name}__model_{k}'] = v
+            if chosen_bench_params:
+                for k, v in chosen_bench_params.items():
+                    output_data[f'{model_name}__train_{k}'] = v
 
+        # --- End loop over benchmarkers ---
         yield json.dumps(output_data)
