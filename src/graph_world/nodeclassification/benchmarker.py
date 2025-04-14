@@ -167,6 +167,7 @@ class NNNodeBenchmarker(Benchmarker):
     train_mask, val_mask, test_mask = masks
 
     self.SetMasks(train_mask, val_mask, test_mask)
+    print("Number of train/test/val nodes: ", train_mask.sum(), test_mask.sum(), val_mask.sum())
     
 
     val_metrics = {}

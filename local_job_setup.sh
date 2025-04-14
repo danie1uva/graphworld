@@ -6,7 +6,7 @@
 BUILD_NAME="graphworld"
 # bash boolean
 RUN_MODE2=false
-NUM_SAMPLES=250
+NUM_SAMPLES=10
 NUM_TUNING_ROUNDS=15
 # py boolean
 SAVE_TUNING_RESULTS=False 

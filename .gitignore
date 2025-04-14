@@ -6,3 +6,4 @@
 *src/hgcn
 *nodeclassification/sbm
 *src/meta_classifier/wandb
+.DS_Store

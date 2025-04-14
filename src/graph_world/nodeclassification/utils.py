@@ -147,32 +147,180 @@ def get_kclass_masks(nodeclassification_data: NodeClassificationDataset,
           torch.as_tensor(validate_mask).reshape(-1),
           torch.as_tensor(test_mask).reshape(-1))
 
+def get_label_masks_stratified_val(
+    y: torch.Tensor,
+    num_train_per_class: int = 5, # Adjusted default for smaller graphs
+    num_val: int = 50,           # Adjusted default for smaller graphs
+    num_min_test: int = 10,      # Minimum nodes required for the test set
+    random_seed: int = 12345
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Creates train, validation, and test masks for semi-supervised learning.
 
-def get_label_masks(y: torch.Tensor,
-                    num_train_per_class: int = 20, num_val: int = 500,
-                    random_seed: int = 12345) -> \
-  Tuple[List[bool], List[bool], List[bool]]:
-  random_gen = torch.Generator()
-  random_gen.manual_seed(random_seed)
-  classes = set(y.numpy())
-  num_samples = y.size(0)
-  train_mask = torch.zeros(num_samples, dtype=bool)
-  for c in classes:
-    idx = (y == c).nonzero(as_tuple=False).view(-1)
-    idx = idx[
-        torch.randperm(idx.size(0), generator=random_gen)[:num_train_per_class]]
-    train_mask[idx] = True
+    - Training set: Fixed number of nodes per class.
+    - Validation set: Fixed total number of nodes, sampled proportionally
+                      from the class distribution remaining after training nodes
+                      are removed.
+    - Test set: All remaining nodes.
 
-  remaining = (~train_mask).nonzero(as_tuple=False).view(-1)
-  remaining = remaining[torch.randperm(remaining.size(0))]
-  if remaining.size(0) < num_val - 10:  # ensure at least 10 in test set
-    num_val = remaining.size(0) - 10
-  if num_val < 10:  # ensure at least 10 in val set
-    raise RuntimeError("set num_val lower, or increase number of nodes")
+    Args:
+        y: Tensor containing the labels for all nodes.
+        num_train_per_class: The number of training nodes to select for each class.
+        num_val: The total number of validation nodes desired.
+        num_min_test: The minimum number of nodes required to be left for the test set.
+        random_seed: Seed for the random number generator.
 
-  val_mask = torch.zeros(num_samples, dtype=bool)
-  val_mask[remaining[:num_val]] = True
+    Returns:
+        A tuple containing boolean tensors for train_mask, val_mask, test_mask.
 
-  test_mask = torch.zeros(num_samples, dtype=bool)
-  test_mask[remaining[num_val:]] = True
-  return train_mask, val_mask, test_mask
+    Raises:
+        RuntimeError: If constraints (e.g., not enough nodes) cannot be met.
+    """
+    random_gen = torch.Generator()
+    random_gen.manual_seed(random_seed)
+    num_samples = y.size(0)
+    classes = torch.unique(y) # More reliable than set(y.numpy())
+    num_classes = classes.size(0)
+
+    train_mask = torch.zeros(num_samples, dtype=bool)
+    val_mask = torch.zeros(num_samples, dtype=bool)
+    test_mask = torch.zeros(num_samples, dtype=bool)
+
+    # --- 1. Select Training Nodes (Fixed per Class) ---
+    nodes_used_in_train = 0
+    for c in classes:
+        idx = (y == c).nonzero(as_tuple=False).view(-1)
+        num_nodes_in_class = idx.size(0)
+        num_train_for_this_class = min(num_nodes_in_class, num_train_per_class)
+        if num_train_for_this_class < num_train_per_class:
+             print(f"Warning: Class {c.item()} has only {num_nodes_in_class} nodes, using {num_train_for_this_class} for training.")
+        
+        if num_train_for_this_class > 0:
+            perm = torch.randperm(num_nodes_in_class, generator=random_gen)[:num_train_for_this_class]
+            train_idx = idx[perm]
+            train_mask[train_idx] = True
+            nodes_used_in_train += num_train_for_this_class
+
+    # --- 2. Identify Remaining Nodes ---
+    remaining_indices = (~train_mask).nonzero(as_tuple=False).view(-1)
+    num_remaining = remaining_indices.size(0)
+
+    # --- 3. Check if Enough Nodes Remain ---
+    if num_remaining < num_val + num_min_test:
+        # Not enough nodes left for the desired validation size and a minimal test set.
+        # Try reducing validation size.
+        adjusted_num_val = num_remaining - num_min_test
+        if adjusted_num_val < 1: # Still not enough even for 1 validation node + min_test
+             raise RuntimeError(
+                 f"Not enough nodes remaining ({num_remaining}) after training ({nodes_used_in_train}) "
+                 f"to create validation and test sets (required min test: {num_min_test}). "
+                 f"Graph size: {num_samples}, Classes: {num_classes}, Train/Class: {num_train_per_class}."
+             )
+        print(f"Warning: Reducing num_val from {num_val} to {adjusted_num_val} to ensure at least {num_min_test} test nodes.")
+        num_val = adjusted_num_val # Use the adjusted number
+
+    if num_val <= 0:
+        print("Warning: No nodes allocated for validation set after adjustments.")
+        # All remaining go to test set
+        test_mask[remaining_indices] = True
+        # Verify train set still has multiple classes if needed elsewhere
+        # (e.g. some loss functions might require it)
+        train_classes = torch.unique(y[train_mask])
+        if len(train_classes) < 2:
+             print(f"Warning: Training set only contains {len(train_classes)} class(es).")
+        return train_mask, val_mask, test_mask # val_mask is all False
+
+    # --- 4. Select Validation Nodes (Stratified Proportional) ---
+    remaining_labels = y[remaining_indices]
+    val_indices_list = []
+
+    # Calculate class counts and proportions in the remaining set
+    unique_remaining_classes, counts_in_remainder_tensor = torch.unique(remaining_labels, return_counts=True)
+    counts_in_remainder = {c.item(): count.item() for c, count in zip(unique_remaining_classes, counts_in_remainder_tensor)}
+
+    # Determine target number of validation samples per class
+    target_val_float = {c: (counts_in_remainder[c] / num_remaining) * num_val for c in counts_in_remainder}
+    final_val_counts = {c: round(target_val_float[c]) for c in counts_in_remainder}
+
+    # Adjust rounding to match exact num_val
+    current_val_total = sum(final_val_counts.values())
+    diff = num_val - current_val_total
+
+    # Sort classes by rounding remainder (descending) to add/remove nodes fairly
+    remainder_tuples = sorted(
+        [(c, target_val_float[c] - final_val_counts[c]) for c in counts_in_remainder],
+        key=lambda item: item[1],
+        reverse=True # Add to classes with largest positive remainder first
+    )
+
+    if diff > 0: # Need to add nodes
+        for i in range(diff):
+            class_to_increment = remainder_tuples[i % len(remainder_tuples)][0]
+            # Ensure we don't take more than available for this class in remainder
+            if final_val_counts[class_to_increment] < counts_in_remainder[class_to_increment]:
+                final_val_counts[class_to_increment] += 1
+            else:
+                # If we can't increment the top choice, try the next one in the sorted list
+                # This simple loop might not perfectly distribute if many classes are maxed out,
+                # but is generally good enough. A more complex redistribution might be needed
+                # for extreme edge cases. Search for next available class to increment.
+                for j in range(1, len(remainder_tuples)):
+                    next_class_idx = (i + j) % len(remainder_tuples)
+                    class_to_increment = remainder_tuples[next_class_idx][0]
+                    if final_val_counts[class_to_increment] < counts_in_remainder[class_to_increment]:
+                         final_val_counts[class_to_increment] += 1
+                         break # Found one
+    elif diff < 0: # Need to remove nodes
+         # Sort ascending by remainder (remove from classes rounded up most aggressively)
+         remainder_tuples.sort(key=lambda item: item[1])
+         for i in range(abs(diff)):
+            class_to_decrement = remainder_tuples[i % len(remainder_tuples)][0]
+            # Ensure we don't remove if count is already 0
+            if final_val_counts[class_to_decrement] > 0:
+                final_val_counts[class_to_decrement] -= 1
+            else:
+                 # Find next available class to decrement
+                 for j in range(1, len(remainder_tuples)):
+                     next_class_idx = (i + j) % len(remainder_tuples)
+                     class_to_decrement = remainder_tuples[next_class_idx][0]
+                     if final_val_counts[class_to_decrement] > 0:
+                         final_val_counts[class_to_decrement] -= 1
+                         break # Found one
+
+    # Sample validation nodes for each class from the remaining nodes
+    for c_item, count in final_val_counts.items():
+        if count == 0:
+            continue
+        c = torch.tensor(c_item, device=y.device) # Ensure tensor on correct device
+        # Find indices within 'remaining_indices' that belong to class 'c'
+        class_mask_in_remaining = (remaining_labels == c)
+        candidate_indices = remaining_indices[class_mask_in_remaining]
+
+        num_available = candidate_indices.size(0)
+        num_to_select = min(count, num_available) # Should be equal if logic above is sound
+
+        if num_to_select > 0:
+             perm = torch.randperm(num_available, generator=random_gen)[:num_to_select]
+             val_idx_for_class = candidate_indices[perm]
+             val_indices_list.append(val_idx_for_class)
+
+    if val_indices_list:
+        val_indices = torch.cat(val_indices_list)
+        val_mask[val_indices] = True
+
+    # --- 5. Select Test Nodes ---
+    # Test nodes are everything not in train or validation
+    test_mask = ~train_mask & ~val_mask
+
+    # --- 6. Final Checks (Optional but Recommended) ---
+    assert train_mask.sum() + val_mask.sum() + test_mask.sum() == num_samples
+    assert not torch.logical_and(train_mask, val_mask).any()
+    assert not torch.logical_and(train_mask, test_mask).any()
+    assert not torch.logical_and(val_mask, test_mask).any()
+    if val_mask.sum() > 0 and torch.unique(y[val_mask]).numel() < 2 :
+         print(f"Warning: Stratified validation resulted in only one class (Class: {torch.unique(y[val_mask]).item()}). This might happen if remaining nodes are heavily skewed or num_val is very small.")
+    if test_mask.sum() < num_min_test:
+         print(f"Warning: Final test set size ({test_mask.sum()}) is less than desired minimum ({num_min_test}).")
+
+
+    return train_mask, val_mask, test_mask
