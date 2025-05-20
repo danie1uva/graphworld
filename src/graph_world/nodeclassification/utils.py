@@ -147,7 +147,7 @@ def get_kclass_masks(nodeclassification_data: NodeClassificationDataset,
           torch.as_tensor(validate_mask).reshape(-1),
           torch.as_tensor(test_mask).reshape(-1))
 
-def get_label_masks_stratified_val(
+def get_label_masks(
     y: torch.Tensor,
     num_train_per_class: int = 5, # Adjusted default for smaller graphs
     num_val: int = 50,           # Adjusted default for smaller graphs
