@@ -1,9 +1,6 @@
 *.pyc  
 *mwe
-*src/hgcn/data
-*src/hgcn/wandb
 *graph_gen
-*src/hgcn
 *nodeclassification/sbm
 *src/meta_classifier/wandb
 .DS_Store
