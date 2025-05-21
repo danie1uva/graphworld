@@ -1,9 +1,16 @@
 # GCN & GNN hyperparameter ranges
 IN_CHANNELS = [16]
 LR = (0.001, 0.2)
-HIDDEN_CHANNELS = [2, 4, 8, 16, 32]
-NUM_LAYERS = [1, 2, 3, 4]
+HIDDEN_CHANNELS = [32]
+NUM_LAYERS = [2]
 DROPOUT = (0.0,0.6)
 EPOCHS = [200]
 WEIGHT_DECAY = (0.0, 0.002)
 PATIENCE = [20]
+
+# HGCN specific hyperparameter
+MANIFOLDS = ['Hyperboloid']
+C_IN = [None]
+C_OUT = [None]
+USE_ATT = [True]
+LOCAL_AGG = [True]

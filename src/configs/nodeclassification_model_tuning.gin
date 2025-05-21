@@ -1,31 +1,52 @@
 # GCN setup
 GCN_/NNNodeBenchmark.model_class = @GCN
 GCN_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'patience': %PATIENCE
+    'epochs'  : %EPOCHS,
+    'patience': %PATIENCE,
 }
 
 GCN_/NNNodeBenchmark.h_params = {
-    'in_channels' : %IN_CHANNELS,
+    'in_channels'     : %IN_CHANNELS,
     'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-    'lr': %LR,
-    'weight_decay' : %WEIGHT_DECAY
+    'num_layers'      : %NUM_LAYERS,
+    'dropout'         : %DROPOUT,
+    'lr'              : %LR,
+    'weight_decay'    : %WEIGHT_DECAY,
+}
+
+# HGCN setup
+HGCN_/NNNodeBenchmark.model_class = @HGCN
+HGCN_/NNNodeBenchmark.benchmark_params = {
+    'epochs'  : %EPOCHS,
+    'patience': %PATIENCE,
+}
+
+HGCN_/NNNodeBenchmark.h_params = {
+    'in_channels'     : %IN_CHANNELS,
+    'hidden_channels' : %HIDDEN_CHANNELS,
+    'num_layers'      : %NUM_LAYERS,
+    'dropout'         : %DROPOUT,
+    'lr'              : %LR,
+    'weight_decay'    : %WEIGHT_DECAY,
+    'manifold'        : %MANIFOLDS,   
+    'c_in'            : %C_IN,        
+    'c_out'           : %C_OUT,       
+    'use_att'         : %USE_ATT,     
+    'local_agg'       : %LOCAL_AGG,   
 }
 
 # MLP setup
 MLP_/NNNodeBenchmark.model_class = @MLP
 MLP_/NNNodeBenchmark.benchmark_params = {
-    'epochs' : %EPOCHS,
-    'patience': %PATIENCE   
+    'epochs'  : %EPOCHS,
+    'patience': %PATIENCE,
 }
 
 MLP_/NNNodeBenchmark.h_params = {
-    'in_channels' : %IN_CHANNELS,
+    'in_channels'     : %IN_CHANNELS,
     'hidden_channels' : %HIDDEN_CHANNELS,
-    'num_layers' : %NUM_LAYERS,
-    'dropout' : %DROPOUT,
-    'lr': %LR,
-    'weight_decay': %WEIGHT_DECAY
+    'num_layers'      : %NUM_LAYERS,
+    'dropout'         : %DROPOUT,
+    'lr'              : %LR,
+    'weight_decay'    : %WEIGHT_DECAY,
 }

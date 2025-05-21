@@ -29,6 +29,9 @@ from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 
 from torch_geometric.nn.conv import APPNP as APPNPConv
 
+from hgcn.layers.hyp_layers import HyperbolicGraphConvolution as HGCNConv
+from hgcn.manifolds.hyperboloid import Hyperboloid
+
 class BasicGNN(torch.nn.Module):
     r"""An abstract class for implementing basic GNN models.
 
@@ -497,3 +500,36 @@ class SuperGAT(BasicGNN):
         for _ in range(1, num_layers):
             self.convs.append(SuperGATConv(hidden_channels, out_channels, **kwargs))
             
+
+@gin.configurable
+class HGCN(BasicGNN):
+    def __init__(self, in_channels, hidden_channels, num_layers,
+                 out_channels=None, dropout=0.0, act=ReLU(inplace=True),
+                 norm=None, jk='last', c_in=1.0, c_out=1.0,
+                 use_att=False, local_agg=False, **kwargs):
+        super().__init__(in_channels, hidden_channels, num_layers,
+                         out_channels, dropout, act, norm, jk)
+
+        # first layer
+        self.convs.append(
+            HGCNConv(manifold=self.manifold,
+                     in_features=in_channels,
+                     out_features=hidden_channels,
+                     c_in=c_in, c_out=c_out,
+                     dropout=dropout,
+                     act=act,
+                     use_bias=kwargs.get('use_bias', True),
+                     use_att=use_att,
+                     local_agg=local_agg))
+        # remaining layers
+        for _ in range(1, num_layers):
+            self.convs.append(
+                HGCNConv(manifold=self.manifold,
+                         in_features=hidden_channels,
+                         out_features=hidden_channels,
+                         c_in=c_in, c_out=c_out,
+                         dropout=dropout,
+                         act=act,
+                         use_bias=kwargs.get('use_bias', True),
+                         use_att=use_att,
+                         local_agg=local_agg))

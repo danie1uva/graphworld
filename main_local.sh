@@ -19,10 +19,13 @@ done
 
 # Get the directory where this script resides
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# Ensure src/ is on Python’s path
+export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
+
 # Get the parent directory (assumed to contain the scratch folder)
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 # Set output path in the scratch folder
-OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/smaller_graphs_smaller_train_set_size_smaller_feature_strength"
+OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/dev_stuff/adding_hgcn"
 
 rm -rf "${OUTPUT_PATH}"
 mkdir -p "${OUTPUT_PATH}"
