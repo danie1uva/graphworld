@@ -135,9 +135,11 @@ class HypAgg(Module):
         x_tangent = self.manifold.logmap0(x, c=self.c)
         if self.use_att:
             if self.local_agg:
+                N,D = x.size(0), x.size(1)
                 x_local_tangent = []
-                for i in range(x.size(0)):
-                    x_local_tangent.append(self.manifold.logmap(x[i], x, c=self.c))
+                for i in range(N):
+                    base = x[i].unsqueeze(0).expand(N,D)
+                    x_local_tangent.append(self.manifold.logmap(base, x, c=self.c))
                 x_local_tangent = torch.stack(x_local_tangent, dim=0)
                 adj_att = self.att(x_tangent, adj)
                 att_rep = adj_att.unsqueeze(-1) * x_local_tangent

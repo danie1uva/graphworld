@@ -3,7 +3,7 @@
 import torch
 
 from .base import Manifold
-from utils.math_utils import artanh, tanh
+from ..utils.math_utils import artanh, tanh
 
 
 class PoincareBall(Manifold):

@@ -2,7 +2,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class DenseAtt(nn.Module):
@@ -23,7 +22,7 @@ class DenseAtt(nn.Module):
 
         x_cat = torch.cat((x_left, x_right), dim=2)
         att_adj = self.linear(x_cat).squeeze()
-        att_adj = F.sigmoid(att_adj)
+        att_adj = torch.sigmoid(att_adj)
         att_adj = torch.mul(adj.to_dense(), att_adj)
         return att_adj
 

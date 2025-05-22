@@ -19,7 +19,7 @@ from torch_geometric.typing import Adj
 import copy
 
 import torch
-from torch import Tensor
+from torch import Tensor, nn
 import torch.nn.functional as F
 from torch.nn import ModuleList, Sequential, Linear, BatchNorm1d, ReLU, Tanh
 
@@ -29,8 +29,73 @@ from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 
 from torch_geometric.nn.conv import APPNP as APPNPConv
 
-from hgcn.layers.hyp_layers import HyperbolicGraphConvolution as HGCNConv
+from hgcn.layers.hyp_layers import HyperbolicGraphConvolution
 from hgcn.manifolds.hyperboloid import Hyperboloid
+
+# -------------------------------------------------------------------
+# Wrapper so HGCN matches signature of other conv layers
+# -------------------------------------------------------------------
+class HGCNConv(torch.nn.Module):
+    def __init__(self, manifold, in_features, out_features,
+                 c_in, c_out, dropout, act,
+                 use_bias, use_att, local_agg, **kwargs):
+        super().__init__()
+
+        # Build curvature parameters:
+        if c_in is None:
+            # learnable curvature
+            self.c_in = nn.Parameter(torch.tensor([1.0], dtype=torch.float32))
+        else:
+            # fixed curvature
+            self.register_buffer('c_in', torch.tensor([c_in], dtype=torch.float32))
+
+        if c_out is None:
+            self.c_out = nn.Parameter(torch.tensor([1.0], dtype=torch.float32))
+        else:
+            self.register_buffer('c_out', torch.tensor([c_out], dtype=torch.float32))
+
+        # select manifold instance if string provided
+        if isinstance(manifold, str):
+            if manifold == 'Hyperboloid':
+                M = Hyperboloid()
+            else:
+                from hgcn.manifolds.poincare import PoincareBall
+                M = PoincareBall()
+        else:
+            M = manifold
+        self.conv = HyperbolicGraphConvolution(
+            manifold=M,
+            in_features=in_features,
+            out_features=out_features,
+            c_in=self.c_in,
+            c_out=self.c_out,
+            dropout=dropout,
+            act=act,
+            use_bias=use_bias,
+            use_att=use_att,
+            local_agg=local_agg,
+            **kwargs
+        )
+
+    def reset_parameters(self):
+        # Reset both curvature and inner conv
+        if isinstance(self.c_in, nn.Parameter):
+            with torch.no_grad():
+                self.c_in.fill_(1.0)
+        if isinstance(self.c_out, nn.Parameter):
+            with torch.no_grad():
+                self.c_out.fill_(1.0)
+        self.conv.reset_parameters()
+
+    def forward(self, x, edge_index, *args, **kwargs):
+
+        N = x.size(0)
+        values = torch.ones(edge_index.size(1), device=edge_index.device)
+        adj = torch.sparse_coo_tensor(edge_index, values, (N, N))
+
+        # HyperbolicGraphConvolution expects (x, adj) tuple
+        out, _ = self.conv((x, adj))
+        return out
 
 class BasicGNN(torch.nn.Module):
     r"""An abstract class for implementing basic GNN models.
@@ -500,11 +565,10 @@ class SuperGAT(BasicGNN):
         for _ in range(1, num_layers):
             self.convs.append(SuperGATConv(hidden_channels, out_channels, **kwargs))
             
-
 @gin.configurable
 class HGCN(BasicGNN):
     def __init__(self, in_channels, hidden_channels, num_layers,
-                 out_channels=None, dropout=0.0, act=ReLU(inplace=True),
+                 out_channels=None, dropout=0.0, act=ReLU(inplace=True), manifold='Hyperboloid',
                  norm=None, jk='last', c_in=1.0, c_out=1.0,
                  use_att=False, local_agg=False, **kwargs):
         super().__init__(in_channels, hidden_channels, num_layers,
@@ -512,7 +576,7 @@ class HGCN(BasicGNN):
 
         # first layer
         self.convs.append(
-            HGCNConv(manifold=self.manifold,
+            HGCNConv(manifold=manifold,
                      in_features=in_channels,
                      out_features=hidden_channels,
                      c_in=c_in, c_out=c_out,
@@ -524,7 +588,7 @@ class HGCN(BasicGNN):
         # remaining layers
         for _ in range(1, num_layers):
             self.convs.append(
-                HGCNConv(manifold=self.manifold,
+                HGCNConv(manifold=manifold,
                          in_features=hidden_channels,
                          out_features=hidden_channels,
                          c_in=c_in, c_out=c_out,
@@ -533,3 +597,4 @@ class HGCN(BasicGNN):
                          use_bias=kwargs.get('use_bias', True),
                          use_att=use_att,
                          local_agg=local_agg))
+
