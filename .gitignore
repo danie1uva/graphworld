@@ -4,3 +4,4 @@
 *nodeclassification/sbm
 *src/meta_classifier/wandb
 .DS_Store
+*src/notebooks/Cora

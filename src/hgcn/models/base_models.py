@@ -6,12 +6,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from layers.layers import FermiDiracDecoder
-import layers.hyp_layers as hyp_layers
-import manifolds
-import models.encoders as encoders
-from models.decoders import model2decoder
-from utils.eval_utils import acc_f1
+from hgcn.layers.layers import FermiDiracDecoder
+import hgcn.layers.hyp_layers as hyp_layers
+import hgcn.manifolds as manifolds
+import hgcn.models.encoders as encoders
+from hgcn.models.decoders import model2decoder
+from hgcn.utils.eval_utils import acc_f1
 
 
 class BaseModel(nn.Module):

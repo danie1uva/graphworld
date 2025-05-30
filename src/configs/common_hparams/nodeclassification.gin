@@ -10,7 +10,6 @@ PATIENCE = [20]
 
 # HGCN specific hyperparameter
 MANIFOLDS = ['Hyperboloid']
-C_IN = [None]
-C_OUT = [None]
+C = [None]
 USE_ATT = [False]
 LOCAL_AGG = [False]

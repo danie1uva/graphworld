@@ -21,6 +21,7 @@ import copy
 import torch
 from torch import Tensor, nn
 import torch.nn.functional as F
+
 from torch.nn import ModuleList, Sequential, Linear, BatchNorm1d, ReLU, Tanh
 
 from torch_geometric.nn.conv import GCNConv, SAGEConv, GINConv, GATConv, \
@@ -28,74 +29,10 @@ from torch_geometric.nn.conv import GCNConv, SAGEConv, GINConv, GATConv, \
 from torch_geometric.nn.models.jumping_knowledge import JumpingKnowledge
 
 from torch_geometric.nn.conv import APPNP as APPNPConv
+from torch_geometric.utils import add_self_loops, degree, to_dense_adj
 
-from hgcn.layers.hyp_layers import HyperbolicGraphConvolution
-from hgcn.manifolds.hyperboloid import Hyperboloid
-
-# -------------------------------------------------------------------
-# Wrapper so HGCN matches signature of other conv layers
-# -------------------------------------------------------------------
-class HGCNConv(torch.nn.Module):
-    def __init__(self, manifold, in_features, out_features,
-                 c_in, c_out, dropout, act,
-                 use_bias, use_att, local_agg, **kwargs):
-        super().__init__()
-
-        # Build curvature parameters:
-        if c_in is None:
-            # learnable curvature
-            self.c_in = nn.Parameter(torch.tensor([1.0], dtype=torch.float32))
-        else:
-            # fixed curvature
-            self.register_buffer('c_in', torch.tensor([c_in], dtype=torch.float32))
-
-        if c_out is None:
-            self.c_out = nn.Parameter(torch.tensor([1.0], dtype=torch.float32))
-        else:
-            self.register_buffer('c_out', torch.tensor([c_out], dtype=torch.float32))
-
-        # select manifold instance if string provided
-        if isinstance(manifold, str):
-            if manifold == 'Hyperboloid':
-                M = Hyperboloid()
-            else:
-                from hgcn.manifolds.poincare import PoincareBall
-                M = PoincareBall()
-        else:
-            M = manifold
-        self.conv = HyperbolicGraphConvolution(
-            manifold=M,
-            in_features=in_features,
-            out_features=out_features,
-            c_in=self.c_in,
-            c_out=self.c_out,
-            dropout=dropout,
-            act=act,
-            use_bias=use_bias,
-            use_att=use_att,
-            local_agg=local_agg,
-            **kwargs
-        )
-
-    def reset_parameters(self):
-        # Reset both curvature and inner conv
-        if isinstance(self.c_in, nn.Parameter):
-            with torch.no_grad():
-                self.c_in.fill_(1.0)
-        if isinstance(self.c_out, nn.Parameter):
-            with torch.no_grad():
-                self.c_out.fill_(1.0)
-        self.conv.reset_parameters()
-
-    def forward(self, x, edge_index, *args, **kwargs):
-
-        N = x.size(0)
-        values = torch.ones(edge_index.size(1), device=edge_index.device)
-        adj = torch.sparse_coo_tensor(edge_index, values, (N, N))
-
-        # HyperbolicGraphConvolution expects (x, adj) tuple
-        out, _ = self.conv((x, adj))
-        return out
+from hgcn.models.encoders import HGCN as _HGCNEncoder
+from hgcn.models.decoders import LinearDecoder
 
 class BasicGNN(torch.nn.Module):
     r"""An abstract class for implementing basic GNN models.
@@ -565,36 +502,89 @@ class SuperGAT(BasicGNN):
         for _ in range(1, num_layers):
             self.convs.append(SuperGATConv(hidden_channels, out_channels, **kwargs))
             
+
 @gin.configurable
-class HGCN(BasicGNN):
-    def __init__(self, in_channels, hidden_channels, num_layers,
-                 out_channels=None, dropout=0.0, act=ReLU(inplace=True), manifold='Hyperboloid',
-                 norm=None, jk='last', c_in=1.0, c_out=1.0,
-                 use_att=False, local_agg=False, **kwargs):
-        super().__init__(in_channels, hidden_channels, num_layers,
-                         out_channels, dropout, act, norm, jk)
+class HGCN(nn.Module):
+    r"""
+    Hyperbolic GCN for node classification, hooked into GraphWorld.
+    """
+    def __init__(self,
+                 in_channels: int,
+                 hidden_channels: int,
+                 num_layers: int,
+                 out_channels: int,
+                 c: Optional[float] = None,
+                 manifold: str = 'Hyperboloid',
+                 dropout: float = 0.5,
+                 bias: bool = True,
+                 act_name: str = 'relu',
+                 **kwargs): 
+        super().__init__()
 
-        # first layer
-        self.convs.append(
-            HGCNConv(manifold=manifold,
-                     in_features=in_channels,
-                     out_features=hidden_channels,
-                     c_in=c_in, c_out=c_out,
-                     dropout=dropout,
-                     act=act,
-                     use_bias=kwargs.get('use_bias', True),
-                     use_att=use_att,
-                     local_agg=local_agg))
-        # remaining layers
-        for _ in range(1, num_layers):
-            self.convs.append(
-                HGCNConv(manifold=manifold,
-                         in_features=hidden_channels,
-                         out_features=hidden_channels,
-                         c_in=c_in, c_out=c_out,
-                         dropout=dropout,
-                         act=act,
-                         use_bias=kwargs.get('use_bias', True),
-                         use_att=use_att,
-                         local_agg=local_agg))
+        self.in_channels     = in_channels
+        self.hidden_channels = hidden_channels
+        self.num_layers      = num_layers
+        self.out_channels    = out_channels
+        self.dropout         = dropout
+        self.bias            = bias
+        self.manifold_name   = manifold
+        self.act             = act_name
 
+        # 1) build a dummy 'args' namespace to feed into Chami’s code
+        args = lambda **kw: None
+        if manifold == "Hyperboloid":
+            args.feat_dim = in_channels + 1
+        else:
+            args.feat_dim   = in_channels
+
+        args.manifold   = manifold
+        args.num_layers = num_layers + 1
+        args.dim        = hidden_channels
+        args.n_classes  = out_channels
+        args.dropout    = dropout
+        args.bias       = bias
+        args.use_att    = False         # or True, if you want hyperbolic attention
+        args.local_agg  = False         # your choice
+        args.alpha      = 0.2           # only for HAT-style
+        args.act        = act_name
+        args.task       = 'nc'
+        args.c          = c 
+        args.cuda       = -1 
+
+        if c is None:
+            # learnable global curvature (init to 1.0)
+            self.c = nn.Parameter(torch.tensor([1.0]), requires_grad=True)
+        else:
+            # fixed global curvature
+            self.register_buffer('c', torch.tensor([c]))
+
+        # 3) instantiate their encoder & decoder
+        self.encoder = _HGCNEncoder(self.c, args)
+        self.decoder = LinearDecoder(self.c, args)
+
+        # for pretty-printing
+        self.__repr__ = lambda: (
+            f"HGCN(in={in_channels}, hid={hidden_channels}, "
+            f"layers={num_layers}, out={out_channels}, manifold={manifold}, "
+            f"c = {c})"
+        )
+        
+        print(self.__repr__())
+
+    def forward(self, x, edge_index):
+        # — prep x for Hyperboloid if needed:
+        if self.encoder.manifold.name == 'Hyperboloid':
+            zero = torch.zeros_like(x[:, :1])
+            x = torch.cat([zero, x], dim=1)
+
+        # — build dense adjacency: [1,N,N]
+        adj = to_dense_adj(edge_index)[0]
+
+        # — encode into hyperbolic embeddings
+        h = self.encoder.encode(x, adj)
+
+        # — decode to class‐scores
+        logits = self.decoder.decode(h, adj)
+
+        # — return raw logits; GraphWorld will apply loss / softmax
+        return logits

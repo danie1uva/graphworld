@@ -165,7 +165,7 @@ class BenchmarkGNNParDo(beam.DoFn):
             self._model_classes,
             self._h_params
         ):
-            print(f"Running {benchmarker_class.__name__} with model {model_class}.")
+            print(f"\nRunning {benchmarker_class.__name__} with model {model_class}.")
             print("Hyperparameters:", h_params)
             print("Benchmark parameters:", benchmark_params)
 
@@ -232,14 +232,14 @@ class BenchmarkGNNParDo(beam.DoFn):
                         return {'loss': float('inf'), 'status': STATUS_FAIL, 'attachments': {'error': str(e)}}
 
                 trials = Trials()
-                print(f"Starting TPE for {actual_rounds} rounds...")
+                print(f"\nStarting TPE for {actual_rounds} rounds...")
 
                 best_raw_params = fmin(
                     fn=objective, space=search_space, algo=tpe.suggest,
                     max_evals=actual_rounds, # Use actual_rounds based on space size vs budget
                     trials=trials, verbose=0
                 )
-                print("\nOptimization finished.")
+                print("Optimization finished.\n")
 
                 try:
                      best_final_hparams = space_eval(search_space, best_raw_params)
@@ -253,7 +253,7 @@ class BenchmarkGNNParDo(beam.DoFn):
 
                 # Since 'attachments' with full results aren't reliably retrieved from trials.best_trial,
                 # re-run the benchmark once using the best found hyperparameters.
-                print("\nRe-running benchmark with best hyperparameters...")
+                print("Re-running benchmark with best hyperparameters...\n")
                 start = time.time()
                 val_metrics = {}
                 test_metrics = {}
@@ -269,7 +269,6 @@ class BenchmarkGNNParDo(beam.DoFn):
                         )
                         val_metrics = best_out.get('val_metrics', {})
                         test_metrics = best_out.get('test_metrics', {})
-                        print("Final run validation metrics:", val_metrics)
                         print("Final run test metrics:", test_metrics) # Optional
                     except Exception as e:
                         print(f"ERROR during final benchmark run. Params: {best_final_hparams}")
