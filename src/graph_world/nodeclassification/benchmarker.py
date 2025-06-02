@@ -46,7 +46,6 @@ class NNNodeBenchmarker(Benchmarker):
     self._train_mask = None
     self._val_mask = None
     self._test_mask = None
-    print(sum(p.numel() for p in self._model.parameters() if p.requires_grad))
 
   def AdjustParams(self, generator_config, torch_data):
     if self._h_params is not None:

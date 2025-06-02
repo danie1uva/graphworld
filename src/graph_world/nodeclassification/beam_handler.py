@@ -14,6 +14,7 @@
 import json
 import logging
 import os
+import random
 
 import apache_beam as beam
 import gin
@@ -122,6 +123,12 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
   def process(self, element):
     sample_id = element['sample_id']
     nodeclassification_data = element['data']
+
+    if isinstance(self._num_train_per_class, (list, tuple)):
+        chosen = random.choice(self._num_train_per_class)
+    else:
+        chosen = self._num_train_per_class
+    self._num_train_per_class = chosen
     
     out = {
       'sample_id': sample_id,
@@ -144,10 +151,13 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
         'nodes': torch_data.num_nodes,
         'edges': torch_data.num_edges,
         'average_node_degree': torch_data.num_edges / torch_data.num_nodes,
+        'train_samples': self._num_train_per_class
         # 'contains_isolated_nodes': torchgeo_data.contains_isolated_nodes(),
         # 'contains_self_loops': torchgeo_data.contains_self_loops(),
         # 'undirected': bool(torchgeo_data.is_undirected())
       }
+      out['metrics']['num_train_per_class'] = self._num_train_per_class
+      
       stats_object_name = os.path.join(
           self._output_path, '{0:05}_torch_stats.txt'.format(sample_id))
       with beam.io.filesystems.FileSystems.create(stats_object_name,
@@ -167,9 +177,10 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
 
     try:
       out['masks'] = get_label_masks(
-          torch_data.y
+          torch_data.y,
+          num_train_per_class=self._num_train_per_class,
+          num_val=self._num_val
       )
-
 
       masks_object_name = os.path.join(
           self._output_path, '{0:05}_masks.txt'.format(sample_id))
@@ -204,6 +215,7 @@ class NodeClassificationBeamHandler(GeneratorBeamHandler):
     self._num_train_per_class = num_train_per_class
     self._num_val = num_val
     self._save_tuning_results = save_tuning_results
+
 
   def GetSampleDoFn(self):
     return self._sample_do_fn

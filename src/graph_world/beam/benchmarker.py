@@ -254,7 +254,6 @@ class BenchmarkGNNParDo(beam.DoFn):
                 # Since 'attachments' with full results aren't reliably retrieved from trials.best_trial,
                 # re-run the benchmark once using the best found hyperparameters.
                 print("Re-running benchmark with best hyperparameters...\n")
-                start = time.time()
                 val_metrics = {}
                 test_metrics = {}
                 if best_final_hparams is not None:
@@ -267,14 +266,11 @@ class BenchmarkGNNParDo(beam.DoFn):
                              element, tuning_metric=self._tuning_metric,
                              tuning_metric_is_loss=self._tuning_metric_is_loss
                         )
-                        val_metrics = best_out.get('val_metrics', {})
                         test_metrics = best_out.get('test_metrics', {})
                         print("Final run test metrics:", test_metrics) # Optional
                     except Exception as e:
                         print(f"ERROR during final benchmark run. Params: {best_final_hparams}")
                         # Metrics remain empty
-                end = time.time()
-                print(f"Training time: {end-start:.2f}")
                 if self._save_tuning_results:
                     model_name_for_saving = model_class.__name__
                     output_data[f'{model_name_for_saving}__hyperopt_trials'] = trials

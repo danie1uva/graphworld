@@ -115,8 +115,9 @@ class BasicGNN(torch.nn.Module):
         return x
 
     def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}({self.in_channels}, '
-                f'{self.out_channels}, num_layers={self.num_layers})')
+        return (f'{self.__class__.__name__}(in_channels = {self.in_channels}, '
+                f'hidden_channels = {self.hidden_channels}, '
+                f'out_channels = {self.out_channels}, num_layers={self.num_layers}) ')
 
 
 @gin.configurable
@@ -346,8 +347,9 @@ class MLP(torch.nn.Module):
         return batch
 
     def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}({self.in_channels}, '
-                f'{self.out_channels}, num_layers={self.num_layers})')
+        return (f'{self.__class__.__name__}(in_channels = {self.in_channels}, '
+                f'hidden_channels = {self.hidden_channels}, '
+                f'out_channels = {self.out_channels}, num_layers={self.num_layers}) ')
 
 
 @gin.configurable
@@ -577,8 +579,7 @@ class HGCN(nn.Module):
             zero = torch.zeros_like(x[:, :1])
             x = torch.cat([zero, x], dim=1)
 
-        # — build dense adjacency: [1,N,N]
-        adj = to_dense_adj(edge_index)[0]
+        adj = to_dense_adj(edge_index, max_num_nodes=x.size(0))[0]
 
         # — encode into hyperbolic embeddings
         h = self.encoder.encode(x, adj)
@@ -588,3 +589,23 @@ class HGCN(nn.Module):
 
         # — return raw logits; GraphWorld will apply loss / softmax
         return logits
+    
+    def reset_parameters(self):
+        """
+        Reset *all* trainable parameters to their initial state,
+        so that each GraphWorld training run starts from fresh weights.
+        """
+        # 1) Reset the global curvature, if it’s a Parameter
+        if isinstance(self.c, nn.Parameter):
+            with torch.no_grad():
+                self.c.fill_(1.0)
+
+        # 2) Reset the Chami encoder’s own parameters
+        #    It has a list of HyperbolicGraphConvolution layers, each of which
+        #    has HypLinear, HypAgg, and HypAct sub‐modules.
+        #    Conveniently, each of those sub‐modules implements .reset_parameters().
+        for layer in self.encoder.layers:
+            layer.reset_parameters()
+
+        # 3) Reset the decoder’s linear head
+        self.decoder.cls.reset_parameters()
