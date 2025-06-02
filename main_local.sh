@@ -25,8 +25,8 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 # Get the parent directory (assumed to contain the scratch folder)
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 # Set output path in the scratch folder
-# OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/dev_stuff/adding_hgcn"
-OUTPUT_PATH="${PARENT_DIR}/graphworld/graph_gen/local_gen/label_efficiency/varied"
+OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/feature_inves/vary_dim/2" 
+# OUTPUT_PATH="${PARENT_DIR}/graphworld/graph_gen/local_gen/label_efficiency/varied"
 
 rm -rf "${OUTPUT_PATH}"
 mkdir -p "${OUTPUT_PATH}"
