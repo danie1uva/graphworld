@@ -292,6 +292,112 @@ def SimulateFeatures(sbm_data,
     features = normalize(features)
   sbm_data.node_features = features
 
+def SimulateHierarchicalFeatures(
+    labels: np.ndarray,
+    feature_dim: int,
+    alpha: float,
+    base_distance: float,
+    noise_variance: float = 1.0,
+    num_supergroups: int = None
+) -> np.ndarray:
+    """
+    Generate D-dimensional node features for nodes 1..N given their class labels,
+    using a one‐parameter interpolation alpha ∈ [0,1] between:
+       • alpha=0: flat Gaussian mixture (K class means i.i.d. from N(0, d^2 I))
+       • alpha=1: pure 2‐level hierarchy (G super‐means ~ N(0,d^2 I), each class mean = parent super‐mean).
+    
+    Args:
+      labels          : 1D array of length N, each entry in {0..K−1} is the class index of node i.
+      feature_dim     : Dimensionality D of each node feature vector.
+      alpha           : Float in [0,1], interpolation between flat (0) and hierarchical (1).
+      base_distance   : Positive float d.  This is the “cluster separation scale.” 
+                        If alpha=0, class‐means ~ N(0, d^2 I).  If alpha=1, super‐means ~ N(0, d^2 I).
+      noise_variance  : Variance σ_noise^2 > 0 used for final “node‐noise” around the chosen class mean. 
+                        (Default: 1.0)
+      num_supergroups : If None, we choose G = ceil(sqrt(K)), and assign classes
+                        to supergroups via a round‐robin.  Otherwise, G = num_supergroups must 
+                        be ≤ K.
+      random_seed     : For reproducibility of random draws.
+    
+    Returns:
+      X: numpy array of shape (N, feature_dim).  Each row is x_i ∈ ℝ^D.
+    
+    --------------------------------------------------
+    Mathematical steps internally:
+      1) Let K = # distinct classes = number of unique labels.
+      2) Choose G = num_supergroups (or G = ceil(sqrt(K))) as the # of super‐clusters.
+      3) Build a mapping `class_to_super[k]` ∈ {0..G−1}, assigning each of the K classes 
+         to one of G super‐clusters (balanced as evenly as possible).
+      4) Top‐level (“super‐means”) variance:
+           τ_top = alpha * base_distance.
+         Mid‐level (“class‐means”) variance:
+           τ_class = (1 − alpha) * base_distance.
+         Node‐noise variance = noise_variance.
+      5) Draw G super‐means μ_top[j] ∼ N(0, τ_top^2 I_D), j=0..G−1.
+      6) For each class k=0..K−1, let j = class_to_super[k].  Then draw 
+           μ_class[k] ∼ N( μ_top[j], τ_class^2 I_D ).
+      7) For each node i∈{1..N}, let k = labels[i].  Then draw 
+           x_i ∼ N( μ_class[k], noise_variance * I_D ).
+      8) (Optional) ℓ2‐normalize each x_i to unit length (or skip if you prefer).
+    --------------------------------------------------
+    """
+
+    labels = np.asarray(labels, dtype=int)
+    N = labels.shape[0]
+    unique_classes = np.unique(labels)
+    K = unique_classes.shape[0]
+
+    # Build a map from actual label values to 0..(K-1)
+    # (in case labels were not exactly 0..K-1)
+    class_list = sorted(unique_classes.tolist())
+    class_to_index = { c: idx for idx, c in enumerate(class_list) }
+    # Remap labels into a 0..K-1 array
+    remapped = np.array([class_to_index[c] for c in labels], dtype=int)
+
+    # 1) Determine number of super‐clusters G
+    if num_supergroups is None:
+        G = int(np.ceil(np.sqrt(K)))
+    else:
+        G = int(num_supergroups)
+        if G > K:
+            raise ValueError("num_supergroups must be ≤ number of distinct classes")
+
+    # 2) Assign each class‐index k∈{0..K-1} to a super‐cluster in {0..G-1}.
+    #    We do a simple round‐robin / “balanced” assignment:
+    class_to_super = np.zeros(K, dtype=int)
+    for k in range(K):
+        class_to_super[k] = k % G
+    # Now class_to_super[k] is an integer in [0..G-1].
+
+    # 3) Compute top‐ and mid‐level standard deviations
+    tau_top   = alpha * base_distance
+    tau_class = (1.0 - alpha) * base_distance
+
+    # 4) Draw the G super‐means in R^D: μ_top[j] ~ N(0, (τ_top)^2 I_D)
+    mu_top = np.random.randn(G, feature_dim) * tau_top
+
+    # 5) Draw the K class‐means: 
+    #    For each k=0..(K-1), let j = class_to_super[k], then
+    #      μ_class[k] ~ N( μ_top[j], (τ_class)^2 I_D ).
+    mu_class = np.zeros((K, feature_dim))
+    for k in range(K):
+        j = class_to_super[k]
+        mu_class[k] = mu_top[j] + np.random.randn(feature_dim) * tau_class
+
+    # 6) Finally, for each node i=0..(N-1), let k = remapped[i], 
+    #    then draw x_i ~ N( mu_class[k], noise_variance I_D ).
+    X = np.zeros((N, feature_dim))
+    for i in range(N):
+        k = remapped[i]
+        X[i] = mu_class[k] + np.random.randn(feature_dim) * np.sqrt(noise_variance)
+
+    # 7) (Optional) L2‐normalize each row to unit length.  If you prefer not to normalize,
+    #    simply comment out the next two lines.
+    
+    X = normalize(X, norm='l2', axis=1)
+
+    return X
+
 
 def SimulateEdgeFeatures(sbm_data,
                          feature_dim,
