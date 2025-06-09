@@ -292,7 +292,7 @@ def SimulateFeatures(sbm_data,
     features = normalize(features)
   sbm_data.node_features = features
 
-def SimulateHierarchicalFeatures(
+def _SimulateHierarchicalFeatures(
     labels: np.ndarray,
     feature_dim: int,
     alpha: float,
@@ -341,6 +341,8 @@ def SimulateHierarchicalFeatures(
       8) (Optional) ℓ2‐normalize each x_i to unit length (or skip if you prefer).
     --------------------------------------------------
     """
+
+
 
     labels = np.asarray(labels, dtype=int)
     N = labels.shape[0]
@@ -391,12 +393,60 @@ def SimulateHierarchicalFeatures(
         k = remapped[i]
         X[i] = mu_class[k] + np.random.randn(feature_dim) * np.sqrt(noise_variance)
 
-    # 7) (Optional) L2‐normalize each row to unit length.  If you prefer not to normalize,
-    #    simply comment out the next two lines.
-    
-    X = normalize(X, norm='l2', axis=1)
-
     return X
+
+def SimulateHierarchicalFeatures(
+    sbm_data,
+    feature_dim: int,
+    alpha: float,
+    base_distance: float,
+    num_groups,
+    noise_variance: float = 1.0,
+    num_supergroups: int = None,
+    normalize_features: bool = True,
+    match_type = MatchType.RANDOM 
+):
+    """Generates D-dimensional hierarchical node features for an SBM.
+    Args:
+      sbm_data: StochasticBlockModel with sbm_data.graph_memberships already set.
+      feature_dim: Dimensionality D of each node feature.
+      alpha: interpolation in [0,1] between flat (0) and full hierarchy (1).
+      base_distance: cluster separation scale d.
+      noise_variance: σ² noise around each class-mean.
+      num_supergroups: # of top-level clusters (G); defaults to ceil(√K).
+      normalize_features: if True, ℓ2-normalize each feature vector.
+    Side-effects:
+      sbm_data.node_features ← (N×D) array of generated features.
+      sbm_data.feature_memberships ← copy of sbm_data.graph_memberships.
+    """
+
+    sbm_data.feature_memberships = _GenerateFeatureMemberships(
+    graph_memberships=sbm_data.graph_memberships,
+    num_groups=num_groups,
+    match_type=match_type)
+
+    if sbm_data.graph_memberships is None:
+        raise RuntimeWarning("No graph_memberships found: run SimulateSbm first.")
+
+    # use the flat community labels as “class labels”
+    labels = np.asarray(sbm_data.graph_memberships, dtype=int)
+
+    # call the existing helper to build X
+    X = _SimulateHierarchicalFeatures(
+        labels=labels,
+        feature_dim=feature_dim,
+        alpha=alpha,
+        base_distance=base_distance,
+        noise_variance=noise_variance,
+        num_supergroups=num_supergroups
+    )
+
+    if normalize_features:
+        X = normalize(X, norm='l2', axis=1)
+
+    sbm_data.node_features = X
+    # we keep feature_memberships aligned with the original classes
+    sbm_data.feature_memberships = labels
 
 
 def SimulateEdgeFeatures(sbm_data,
@@ -490,16 +540,77 @@ def GenerateStochasticBlockModelWithFeatures(
   result = StochasticBlockModel()
   SimulateSbm(result, num_vertices, num_edges, pi, prop_mat, out_degs)
   SimulateFeatures(result, feature_center_distance,
-                   feature_dim,
-                   num_feature_groups,
-                   feature_group_match_type,
-                   feature_cluster_variance,
-                   normalize_features)
+                    feature_dim,
+                    num_feature_groups,
+                    feature_group_match_type,
+                    feature_cluster_variance,
+                    normalize_features)
   SimulateEdgeFeatures(result, edge_feature_dim,
                        edge_center_distance,
                        edge_cluster_variance)
   return result
 
+def GenerateStochasticBlockModelWithHierarchicalFeatures(
+        num_vertices,
+    num_edges,
+    pi,
+    prop_mat,
+    alpha,
+    out_degs=None,
+    feature_center_distance=0.0,
+    feature_dim=0,
+    num_feature_groups=1,
+    feature_group_match_type=MatchType.RANDOM,
+    feature_cluster_variance=1.0,
+    edge_feature_dim=0,
+    edge_center_distance=0.0,
+    edge_cluster_variance=1.0,
+    normalize_features=True):
+  """Generates stochastic block model (SBM) with node features.
+  Args:
+    num_vertices: number of nodes in the graph.
+    num_edges: expected number of edges in the graph.
+    pi: interable of non-zero community size proportions. Must sum to 1.0.
+    prop_mat: square, symmetric matrix of community edge count rates. Example:
+      if diagonals are 2.0 and off-diagonals are 1.0, within-community edges are
+      twices as likely as between-community edges.
+    alpha: interpolating parameter controlling the degree of hierarchy: alpha = 0 means flat, alpha = 1 two-tiered.
+    out_degs: Out-degree propensity for each node. If not provided, a constant
+      value will be used. Note that the values will be normalized inside each
+      group, if they are not already so.
+    feature_center_distance: distance between feature cluster centers. When this
+      is 0.0, the signal-to-noise ratio is 0.0. When equal to
+      feature_cluster_variance, SNR is 1.0.
+    feature_dim: dimension of node features.
+    num_feature_groups: number of feature clusters.
+    feature_group_match_type: see sbm_simulator.MatchType.
+    feature_cluster_variance: variance of feature clusters around their centers.
+      centers. Increasing this weakens node feature signal.
+    edge_feature_dim: dimension of edge features.
+    edge_center_distance: per-dimension distance between the intra-class and
+      inter-class means. Increasing this strengthens the edge feature signal.
+    edge_cluster_variance: variance of edge clusters around their centers.
+      Increasing this weakens the edge feature signal.
+  Returns:
+    result: a StochasticBlockModel data class."""
+  
+  result = StochasticBlockModel()
+  SimulateSbm(result, num_vertices, num_edges, pi, prop_mat, out_degs)
+  SimulateHierarchicalFeatures(result, 
+                    feature_dim=feature_dim,
+                    alpha = alpha,                    
+                    base_distance = feature_center_distance,
+                    noise_variance = feature_cluster_variance,
+                    normalize_features = normalize_features,
+                    num_groups=num_feature_groups,
+                    match_type=feature_group_match_type)
+  
+  SimulateEdgeFeatures(result, edge_feature_dim,
+                       edge_center_distance,
+                       edge_cluster_variance)
+  
+  return result
+  
 
 # Helper function to create the "Pi" vector for the SBM model (the
 # ${num_communities}-simplex vector giving relative community sizes) from

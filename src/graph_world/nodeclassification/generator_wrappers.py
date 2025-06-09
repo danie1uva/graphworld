@@ -16,7 +16,7 @@ import gin
 import numpy as np
 
 from ..beam.generator_config_sampler import GeneratorConfigSampler
-from ..generators.sbm_simulator import GenerateStochasticBlockModelWithFeatures, MatchType, MakePi, MakePropMat, MakeDegrees
+from ..generators.sbm_simulator import GenerateStochasticBlockModelWithFeatures, GenerateStochasticBlockModelWithHierarchicalFeatures, MatchType, MakePi, MakePropMat, MakeDegrees
 from ..generators.cabam_simulator import GenerateCABAMGraphWithFeatures
 from ..generators.lfr_simulator import GenerateLFRGraphWithFeatures, SimulateLFRWrapper
 from ..nodeclassification.utils import NodeClassificationDataset
@@ -26,12 +26,14 @@ from ..nodeclassification.utils import NodeClassificationDataset
 class SbmGeneratorWrapper(GeneratorConfigSampler):
 
   def __init__(self, param_sampler_specs, marginal=False,
-               normalize_features=True, use_generated_lfr_communities=False, lfr_params=None):
+               normalize_features=True, use_generated_lfr_communities=False, lfr_params=None, hier_feats = False):
     super(SbmGeneratorWrapper, self).__init__(param_sampler_specs)
     self._marginal = marginal
     self._normalize_features = normalize_features
     self._use_generated_lfr_communities = use_generated_lfr_communities
     self._lfr_params = lfr_params
+    self._hier_feats = hier_feats
+    self._AddSamplerFn('alpha', self._SampleUniformInteger) 
     self._AddSamplerFn('nvertex', self._SampleUniformInteger)
     self._AddSamplerFn('avg_degree', self._SampleUniformFloat)
     self._AddSamplerFn('feature_center_distance', self._SampleUniformFloat)
@@ -96,7 +98,27 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
       pi=MakePi(generator_config['num_clusters'],generator_config['cluster_size_slope'])
       
     prop_mat=MakePropMat(generator_config['num_clusters'],generator_config['p_to_q_ratio'])
-    sbm_data = GenerateStochasticBlockModelWithFeatures(
+
+    if self._hier_feats:
+      sbm_data = GenerateStochasticBlockModelWithHierarchicalFeatures(
+              num_vertices=generator_config['nvertex'],
+              num_edges=generator_config['nvertex'] * generator_config['avg_degree'],
+              pi=pi,
+              prop_mat=prop_mat,
+              alpha = generator_config['alpha']/10,
+              num_feature_groups=generator_config['num_clusters'],
+              feature_group_match_type=MatchType.GROUPED,
+              feature_center_distance=generator_config['feature_center_distance'],
+              feature_dim=generator_config['feature_dim'],
+              edge_center_distance=generator_config['edge_center_distance'],
+              edge_feature_dim=generator_config['edge_feature_dim'],
+              out_degs=MakeDegrees(generator_config['power_exponent'], 
+                                      generator_config['min_deg'],
+                                      generator_config['nvertex']),
+              normalize_features=self._normalize_features
+              )
+    else:
+      sbm_data = GenerateStochasticBlockModelWithFeatures(
       num_vertices=generator_config['nvertex'],
       num_edges=generator_config['nvertex'] * generator_config['avg_degree'],
       pi=pi,

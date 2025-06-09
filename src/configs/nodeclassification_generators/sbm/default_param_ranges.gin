@@ -9,7 +9,8 @@ SBMSamplerSpec = [
   @num_clusters/ParamSamplerSpec(),
   @cluster_size_slope/ParamSamplerSpec(),
   @power_exponent/ParamSamplerSpec(),
-  @min_deg/ParamSamplerSpec()
+  @min_deg/ParamSamplerSpec(),
+  @alpha/ParamSamplerSpec()
 ]
 
 nvertex/ParamSamplerSpec.name = "nvertex"
@@ -58,3 +59,7 @@ power_exponent/ParamSamplerSpec.max_val = .9
 min_deg/ParamSamplerSpec.name = "min_deg"
 min_deg/ParamSamplerSpec.min_val = 2
 min_deg/ParamSamplerSpec.max_val = 2
+
+alpha/ParamSamplerSpec.name = "alpha"
+alpha/ParamSamplerSpec.min_val = 0.0
+alpha/ParamSamplerSpec.max_val = 10.0
