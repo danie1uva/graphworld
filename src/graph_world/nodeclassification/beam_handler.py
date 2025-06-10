@@ -117,18 +117,18 @@ class ComputeNodeClassificationMetrics(beam.DoFn):
 class ConvertToTorchGeoDataParDo(beam.DoFn):
   def __init__(self, output_path, num_train_per_class=5, num_val=5):
     self._output_path = output_path
-    self._num_train_per_class = num_train_per_class
+    self._initial_num_train_per_class = num_train_per_class
     self._num_val = num_val
 
   def process(self, element):
     sample_id = element['sample_id']
     nodeclassification_data = element['data']
 
-    if isinstance(self._num_train_per_class, (list, tuple)):
-        chosen = random.choice(self._num_train_per_class)
+    # Perform the random choice on the stored initial list
+    if isinstance(self._initial_num_train_per_class, (list, tuple)):
+        chosen_num_train = random.choice(self._initial_num_train_per_class)
     else:
-        chosen = self._num_train_per_class
-    self._num_train_per_class = chosen
+        chosen_num_train = self._initial_num_train_per_class
     
     out = {
       'sample_id': sample_id,
@@ -151,12 +151,12 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
         'nodes': torch_data.num_nodes,
         'edges': torch_data.num_edges,
         'average_node_degree': torch_data.num_edges / torch_data.num_nodes,
-        'train_samples': self._num_train_per_class
+        'train_samples': chosen_num_train
         # 'contains_isolated_nodes': torchgeo_data.contains_isolated_nodes(),
         # 'contains_self_loops': torchgeo_data.contains_self_loops(),
         # 'undirected': bool(torchgeo_data.is_undirected())
       }
-      out['metrics']['num_train_per_class'] = self._num_train_per_class
+      out['metrics']['num_train_per_class'] = chosen_num_train
       
       stats_object_name = os.path.join(
           self._output_path, '{0:05}_torch_stats.txt'.format(sample_id))
@@ -178,7 +178,7 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
     try:
       out['masks'] = get_label_masks(
           torch_data.y,
-          num_train_per_class=self._num_train_per_class,
+          num_train_per_class=chosen_num_train,
           num_val=self._num_val
       )
 
