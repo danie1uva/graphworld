@@ -44,6 +44,7 @@ class NodeClassificationDataset:
   node_features: np.ndarray = Ellipsis
   feature_memberships: np.ndarray = Ellipsis
   edge_features: Dict[Tuple[int, int], np.ndarray] = Ellipsis
+  super_memberships: np.ndarray = None
 
 
 def nodeclassification_data_to_torchgeo_data(

@@ -57,6 +57,7 @@ class StochasticBlockModel:
   node_features: np.ndarray = Ellipsis
   feature_memberships: np.ndarray = Ellipsis
   edge_features: Dict[Tuple[int, int], np.ndarray] = Ellipsis
+  super_memberships: np.ndarray = None 
 
 
 def _GetNestingMap(large_k, small_k):
@@ -225,8 +226,7 @@ def _SimulateHierarchicalFeatures(
       labels          : 1D array of length N, each entry in {0..K−1} is the class index of node i.
       feature_dim     : Dimensionality D of each node feature vector.
       alpha           : Float in [0,1], interpolation between flat (0) and hierarchical (1).
-      base_distance   : Positive float d.  This is the “cluster separation scale.” 
-                        If alpha=0, class‐means ~ N(0, d^2 I).  If alpha=1, super‐means ~ N(0, d^2 I).
+      base_distance   : Variance of the class‐ and super‐cluster centers. (Matches `center_var` in `SimulateFeatures`.)  
       noise_variance  : Variance σ_noise^2 > 0 used for final “node‐noise” around the chosen class mean. 
                         (Default: 1.0)
       num_supergroups : If None, we choose G = ceil(sqrt(K)), and assign classes
@@ -271,13 +271,10 @@ def _SimulateHierarchicalFeatures(
     # Remap labels into a 0..K-1 array
     remapped = np.array([class_to_index[c] for c in labels], dtype=int)
 
-    # 1) Determine number of super‐clusters G
-    if num_supergroups is None:
-        G = int(np.ceil(np.sqrt(K)))
+    if num_supergroups is not None:
+      G = num_supergroups
     else:
-        G = int(num_supergroups)
-        if G > K:
-            raise ValueError("num_supergroups must be ≤ number of distinct classes")
+      G = int(np.ceil(np.sqrt(K)))
 
     # 2) Assign each class‐index k∈{0..K-1} to a super‐cluster in {0..G-1}.
     #    We do a simple round‐robin / “balanced” assignment:
@@ -287,11 +284,11 @@ def _SimulateHierarchicalFeatures(
     # Now class_to_super[k] is an integer in [0..G-1].
 
     # 3) Compute top‐ and mid‐level standard deviations
-    tau_top   = alpha * base_distance
-    tau_class = (1.0 - alpha) * base_distance
+    tau_top_std   = np.sqrt(alpha * base_distance)
+    tau_class_std = np.sqrt((1.0 - alpha) * base_distance)
 
     # 4) Draw the G super‐means in R^D: μ_top[j] ~ N(0, (τ_top)^2 I_D)
-    mu_top = np.random.randn(G, feature_dim) * tau_top
+    mu_top = np.random.randn(G, feature_dim) * tau_top_std
 
     # 5) Draw the K class‐means: 
     #    For each k=0..(K-1), let j = class_to_super[k], then
@@ -299,7 +296,7 @@ def _SimulateHierarchicalFeatures(
     mu_class = np.zeros((K, feature_dim))
     for k in range(K):
         j = class_to_super[k]
-        mu_class[k] = mu_top[j] + np.random.randn(feature_dim) * tau_class
+        mu_class[k] = mu_top[j] + np.random.randn(feature_dim) * tau_class_std
 
     # 6) Finally, for each node i=0..(N-1), let k = remapped[i], 
     #    then draw x_i ~ N( mu_class[k], noise_variance I_D ).
@@ -377,6 +374,7 @@ def SimulateFeatures(sbm_data,
     num_groups=num_groups,
     match_type=match_type)
 
+  sbm_data.super_memberships = None
   # Get centers
   centers = []
   center_cov = np.identity(feature_dim) * center_var
@@ -404,7 +402,7 @@ def SimulateHierarchicalFeatures(
     noise_variance: float = 1.0,
     num_supergroups: int = None,
     normalize_features: bool = True,
-    match_type = MatchType.RANDOM 
+    match_type = MatchType.RANDOM,
 ):
     """Generates D-dimensional hierarchical node features for an SBM.
     Args:
@@ -430,6 +428,23 @@ def SimulateHierarchicalFeatures(
 
     labels = np.asarray(sbm_data.feature_memberships, dtype=int)
 
+    unique_classes = np.unique(labels)
+    K = unique_classes.shape[0]
+    if num_supergroups is not None:
+      G = num_supergroups
+    else:
+      G = int(np.ceil(np.sqrt(K)))
+
+    # Build a map from actual label values to 0..(K-1)
+    # (in case labels were not exactly 0..K-1)
+    class_list = sorted(unique_classes.tolist())
+    class_to_super = { c: (idx % G) for idx, c in enumerate(class_list) }
+
+    # Remap labels into a 0..K-1 array
+    super_labels = np.array([class_to_super[c] for c in labels ], dtype = int)
+
+    sbm_data.super_memberships = super_labels 
+
     # call the existing helper to build X
     X = _SimulateHierarchicalFeatures(
         labels=labels,
@@ -437,7 +452,7 @@ def SimulateHierarchicalFeatures(
         alpha=alpha,
         base_distance=base_distance,
         noise_variance=noise_variance,
-        num_supergroups=num_supergroups
+        num_supergroups=G
     )
 
     if normalize_features:
@@ -562,7 +577,8 @@ def GenerateStochasticBlockModelWithHierarchicalFeatures(
     edge_feature_dim=1,
     edge_center_distance=0.0,
     edge_cluster_variance=1.0,
-    normalize_features=True):
+    normalize_features=True,
+    super_group_strategy = 0.0):
   """Generates stochastic block model (SBM) with node features.
   Args:
     num_vertices: number of nodes in the graph.
@@ -588,16 +604,29 @@ def GenerateStochasticBlockModelWithHierarchicalFeatures(
       inter-class means. Increasing this strengthens the edge feature signal.
     edge_cluster_variance: variance of edge clusters around their centers.
       Increasing this weakens the edge feature signal.
+    normalize_features: row-normalized features to unit ball.
+    super_group_strategy: method employed to calculate number of super-groups. Baselines to ceil(sqrt(K)), where K number of classes
   Returns:
     result: a StochasticBlockModel data class."""
   
   result = StochasticBlockModel()
   SimulateSbm(result, num_vertices, num_edges, pi, prop_mat, out_degs)
+
+  if super_group_strategy == 0.0:
+    # binary
+    G = 2
+  elif super_group_strategy == 1.0:
+    # half
+    G = max(2, num_feature_groups // 2)
+  else:  # 'sqrt_ceil'
+    G = int(np.ceil(np.sqrt(num_feature_groups)))
+
   SimulateHierarchicalFeatures(result, 
                     feature_dim=feature_dim,
                     alpha = alpha,                    
                     base_distance = feature_center_distance,
                     noise_variance = feature_cluster_variance,
+                    num_supergroups=G,
                     normalize_features = normalize_features,
                     num_groups=num_feature_groups,
                     match_type=feature_group_match_type)

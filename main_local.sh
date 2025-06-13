@@ -26,7 +26,7 @@ export PYTHONPATH="${SCRIPT_DIR}/src:${PYTHONPATH}"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 # Set output path in the scratch folder
 # OUTPUT_PATH="${PARENT_DIR}/scratch/dgoodwin/feature_inves/vary_dim/2" 
-OUTPUT_PATH="${PARENT_DIR}/graphworld/graph_gen/local_gen/feature_dim_inves"
+OUTPUT_PATH="${PARENT_DIR}/graphworld/graph_gen/local_gen/hier_feats"
 
 rm -rf "${OUTPUT_PATH}"
 mkdir -p "${OUTPUT_PATH}"

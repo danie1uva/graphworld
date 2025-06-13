@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import numpy as np
+from sklearn.metrics import pairwise_distances
 
 import graph_tool
 
@@ -157,8 +158,49 @@ def _get_num_clusters(labels):
 def _get_average_degree(degrees):
   return np.mean(degrees)
 
+def _feature_hierarchy_score(labels: np.ndarray,
+                            features: np.ndarray,
+                            super_memberships: np.ndarray) -> float:
+    """
+    Two‐level feature‐distance ratio:
+      H_feat = (mean(dist_inter) – mean(dist_mid)) / (mean(dist_mid) – mean(dist_intra))
 
-def NodeLabelMetrics(graph, labels, features):
+    Args:
+      labels              : (N,) int array of sub‐cluster labels
+      features            : (N, D) float array of node features
+      super_memberships   : (N,) int array of super‐cluster labels
+
+    Returns:
+      H_feat (float), or np.nan if any of the three pair‐sets is empty.
+    """
+    # 1) compute pairwise Euclidean distances in feature space
+    dist_mat = pairwise_distances(features, metric='euclidean')
+
+    # 2) masks for same‐sub and same‐super
+    same_sub = labels[:, None] == labels[None, :]
+    same_sup = super_memberships[:, None] == super_memberships[None, :]
+
+    # 3) take only i<j to avoid duplicates & diagonal
+    iu, ju = np.triu_indices_from(dist_mat, k=1)
+    dists = dist_mat[iu, ju]
+    sub_eq = same_sub[iu, ju]
+    sup_eq = same_sup[iu, ju]
+
+    # 4) classify pairs
+    d_intra = dists[sub_eq]                   # same sub‐cluster
+    d_mid   = dists[~sub_eq & sup_eq]         # same super but different sub
+    d_inter = dists[~sup_eq]                  # different super‐clusters
+
+    # 5) require all three nonempty
+    if len(d_intra)==0 or len(d_mid)==0 or len(d_inter)==0:
+        return np.nan
+
+    # 6) return the hierarchy ratio
+    return (d_inter.mean() - d_mid.mean()) / (d_mid.mean() - d_intra.mean())
+
+
+
+def NodeLabelMetrics(graph, labels, features, super_labels):
   metrics = {'edge_homogeneity': edge_homogeneity(graph, labels)}
   normed_features = matrix_row_norm(features)
   in_avg, out_avg = feature_homogeneity(normed_features, labels)
@@ -175,4 +217,6 @@ def NodeLabelMetrics(graph, labels, features):
     metrics['p_to_q_ratio__est_dc'] = _get_p_to_q_ratio(graph, labels, degrees,
                                                   adjusted=True)
     metrics['num_clusters'] = _get_num_clusters(labels)
+  if labels is not None and super_labels is not None:
+    metrics['feat_hier_score'] = _feature_hierarchy_score(labels, features, super_labels)
   return metrics
