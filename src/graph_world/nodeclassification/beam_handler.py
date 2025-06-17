@@ -117,10 +117,10 @@ class ComputeNodeClassificationMetrics(beam.DoFn):
 
 
 class ConvertToTorchGeoDataParDo(beam.DoFn):
-  def __init__(self, output_path, num_train_per_class=5, num_val=5):
+  def __init__(self, output_path, num_train_per_class=5, num_val_per_class=5):
     self._output_path = output_path
     self._initial_num_train_per_class = num_train_per_class
-    self._num_val = num_val
+    self._num_val_per_class = num_val_per_class
 
   def process(self, element):
     sample_id = element['sample_id']
@@ -181,7 +181,7 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
       out['masks'] = get_label_masks(
           torch_data.y,
           num_train_per_class=chosen_num_train,
-          num_val=self._num_val
+          num_val_per_class=self._num_val_per_class
       )
 
       masks_object_name = os.path.join(
@@ -208,14 +208,14 @@ class NodeClassificationBeamHandler(GeneratorBeamHandler):
   def __init__(self, benchmarker_wrappers, generator_wrapper,
                num_tuning_rounds=1, tuning_metric='',
                tuning_metric_is_loss=False, num_train_per_class=20,
-               num_val=50, save_tuning_results=False):
+               num_val_per_class=50, save_tuning_results=False):
     self._sample_do_fn = SampleNodeClassificationDatasetDoFn(generator_wrapper)
     self._benchmark_par_do = BenchmarkGNNParDo(
         benchmarker_wrappers, num_tuning_rounds, tuning_metric,
         tuning_metric_is_loss, save_tuning_results)
     self._metrics_par_do = ComputeNodeClassificationMetrics()
     self._num_train_per_class = num_train_per_class
-    self._num_val = num_val
+    self._num_val = num_val_per_class
     self._save_tuning_results = save_tuning_results
 
 

@@ -47,7 +47,7 @@ edge_feature_dim/ParamSamplerSpec.max_val = 1.0
 
 num_clusters/ParamSamplerSpec.name = "num_clusters"
 num_clusters/ParamSamplerSpec.min_val = 2.0
-num_clusters/ParamSamplerSpec.max_val = 9.0
+num_clusters/ParamSamplerSpec.max_val = 7.0
 
 cluster_size_slope/ParamSamplerSpec.name = "cluster_size_slope"
 cluster_size_slope/ParamSamplerSpec.min_val = 0.0

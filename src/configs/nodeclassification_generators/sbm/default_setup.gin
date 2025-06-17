@@ -24,4 +24,4 @@ SbmGeneratorWrapper.use_generated_lfr_communities = False
 SbmGeneratorWrapper.lfr_params = %LFRSamplerSpec
 
 # Decide Hierarchical Features or not 
-SbmGeneratorWrapper.hier_feats = True
+SbmGeneratorWrapper.hier_feats = False
