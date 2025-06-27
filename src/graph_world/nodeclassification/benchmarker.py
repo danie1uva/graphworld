@@ -172,12 +172,12 @@ class NNNodeBenchmarker(Benchmarker):
     val_metrics = {}
     test_metrics = {}
     losses = None
-    # try:
-    losses, test_metrics, val_metrics = self.train(
+    try:
+      losses, test_metrics, val_metrics = self.train(
         torch_data, tuning_metric=tuning_metric, tuning_metric_is_loss=tuning_metric_is_loss)
-    # except Exception as e:
-    #   print(f'Failed to run for sample id {sample_id} using model {self._model_name}: {str(e)}') 
-    #   out['skipped'] = True
+    except Exception as e:
+      print(f'Failed to run for sample id {sample_id} using model {self._model_name}: {str(e)}') 
+      out['skipped'] = True
 
     out['losses'] = losses
     out['test_metrics'].update(test_metrics)

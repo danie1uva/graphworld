@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import logging
+import os
+import json
 
 import apache_beam as beam
 import gin
@@ -84,6 +86,8 @@ class WriteLinkPredictionDatasetDoFn(beam.DoFn):
             edge_tuple[0], edge_tuple[1], features), 'utf-8')
         f.write(buf)
       f.close()
+
+    yield element
 
 
 class ComputeLinkPredictionMetrics(beam.DoFn):

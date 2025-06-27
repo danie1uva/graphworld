@@ -393,6 +393,81 @@ def SimulateFeatures(sbm_data,
     features = normalize(features)
   sbm_data.node_features = features
 
+def SimulateNoisyFeatures(
+    sbm_data,
+    center_var: float,
+    feature_dim: int,
+    num_groups: int,
+    match_type=MatchType.RANDOM,
+    cluster_var: float = 1.0,
+    noise_var: float = 1.0,
+    normalize_features: bool = True,
+):
+    """Generates 2·feature_dim-length node features: signal ‖ pure noise.
+
+    The first half is identical to *SimulateFeatures* (Gaussian around class
+    centres); the second half is i.i.d. Gaussian noise with variance *noise_var*.
+
+    Args
+    ----
+    sbm_data : StochasticBlockModel dataclass (must have `graph_memberships`)
+    center_var : variance of the class centres (signal strength)
+    feature_dim : dimensionality of the *signal* block (overall output will be
+                  `2*feature_dim`)
+    num_groups : number of class centres
+    match_type : see original function
+    cluster_var : intra-cluster variance of the signal block
+    noise_var : variance of each coordinate in the noise block
+    normalize_features : z-normalise the **concatenated** features
+
+    Raises
+    ------
+    RuntimeWarning
+        if `sbm_data.graph_memberships` is missing.
+    """
+    if sbm_data.graph_memberships is None:
+        raise RuntimeWarning(
+            "No graph_memberships found: no features generated. "
+            "Run SimulateSbm to generate graph_memberships."
+        )
+
+    # 1) Signal memberships (possibly permuted by `match_type`)
+    sbm_data.feature_memberships = _GenerateFeatureMemberships(
+        graph_memberships=sbm_data.graph_memberships,
+        num_groups=num_groups,
+        match_type=match_type,
+    )
+    sbm_data.super_memberships = None  # unchanged
+
+    # 2) Draw class centres & per-node signal vectors  (same as SimulateFeatures)
+    centre_cov = np.identity(feature_dim) * center_var
+    cluster_cov = np.identity(feature_dim) * cluster_var
+    centres = [
+        np.random.multivariate_normal(np.zeros(feature_dim), centre_cov)
+        for _ in range(num_groups)
+    ]
+
+    signal_feats = np.vstack([
+        np.random.multivariate_normal(centres[c], cluster_cov)
+        for c in sbm_data.feature_memberships
+    ])  # shape (N, feature_dim)
+
+    # 3) Draw pure-noise block
+    noise_feats = np.random.normal(
+        loc=0.0,
+        scale=np.sqrt(noise_var),
+        size=(signal_feats.shape[0], feature_dim),
+    )
+
+    # 4) Concatenate  ——>  final shape (N, 2*feature_dim)
+    features = np.hstack([signal_feats, noise_feats])
+
+    # 5) Optional global z-normalisation
+    if normalize_features:
+        features = normalize(features)
+
+    sbm_data.node_features = features
+
 def SimulateHierarchicalFeatures(
     sbm_data,
     feature_dim: int,
@@ -551,12 +626,20 @@ def GenerateStochasticBlockModelWithFeatures(
   """
   result = StochasticBlockModel()
   SimulateSbm(result, num_vertices, num_edges, pi, prop_mat, out_degs)
-  SimulateFeatures(result, feature_center_distance,
-                    feature_dim,
-                    num_feature_groups,
-                    feature_group_match_type,
-                    feature_cluster_variance,
-                    normalize_features)
+  # SimulateFeatures(result, 
+  #                 feature_center_distance,
+  #                 feature_dim,
+  #                 num_feature_groups,
+  #                 feature_group_match_type,
+  #                 feature_cluster_variance,
+  #                 normalize_features)
+  SimulateNoisyFeatures(sbm_data = result, 
+                  center_var= feature_center_distance,
+                  feature_dim=feature_dim,
+                  num_groups=num_feature_groups,
+                  match_type=feature_group_match_type,
+                  cluster_var = feature_cluster_variance,
+                  normalize_features=normalize_features)
   SimulateEdgeFeatures(result, edge_feature_dim,
                        edge_center_distance,
                        edge_cluster_variance)

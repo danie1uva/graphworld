@@ -26,7 +26,7 @@ from ..nodeclassification.utils import NodeClassificationDataset
 class SbmGeneratorWrapper(GeneratorConfigSampler):
 
   def __init__(self, param_sampler_specs, marginal=False,
-               normalize_features=True, use_generated_lfr_communities=False, lfr_params=None, hier_feats = False, super_group_strat = 'sqrt_ceil'):
+               normalize_features=True, use_generated_lfr_communities=False, lfr_params=None, hier_feats = False):
     super(SbmGeneratorWrapper, self).__init__(param_sampler_specs)
     self._marginal = marginal
     self._normalize_features = normalize_features
