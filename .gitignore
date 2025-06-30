@@ -5,3 +5,5 @@
 *src/meta_classifier/wandb
 .DS_Store
 *src/notebooks/Cora
+main_local.sh
+local_job_setup.sh
