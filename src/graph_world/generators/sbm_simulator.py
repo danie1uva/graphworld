@@ -431,15 +431,13 @@ def SimulateNoisyFeatures(
             "Run SimulateSbm to generate graph_memberships."
         )
 
-    # 1) Signal memberships (possibly permuted by `match_type`)
     sbm_data.feature_memberships = _GenerateFeatureMemberships(
         graph_memberships=sbm_data.graph_memberships,
         num_groups=num_groups,
         match_type=match_type,
     )
-    sbm_data.super_memberships = None  # unchanged
+    sbm_data.super_memberships = None 
 
-    # 2) Draw class centres & per-node signal vectors  (same as SimulateFeatures)
     centre_cov = np.identity(feature_dim) * center_var
     cluster_cov = np.identity(feature_dim) * cluster_var
     centres = [
@@ -450,21 +448,18 @@ def SimulateNoisyFeatures(
     signal_feats = np.vstack([
         np.random.multivariate_normal(centres[c], cluster_cov)
         for c in sbm_data.feature_memberships
-    ])  # shape (N, feature_dim)
+    ]) 
 
-    # 3) Draw pure-noise block
     noise_feats = np.random.normal(
         loc=0.0,
         scale=np.sqrt(noise_var),
         size=(signal_feats.shape[0], feature_dim),
     )
 
-    # 4) Concatenate  ——>  final shape (N, 2*feature_dim)
-    features = np.hstack([signal_feats, noise_feats])
-
-    # 5) Optional global z-normalisation
     if normalize_features:
-        features = normalize(features)
+        signal_feats = normalize(signal_feats)
+
+    features = np.hstack([signal_feats, noise_feats])
 
     sbm_data.node_features = features
 
@@ -510,17 +505,13 @@ def SimulateHierarchicalFeatures(
     else:
       G = int(np.ceil(np.sqrt(K)))
 
-    # Build a map from actual label values to 0..(K-1)
-    # (in case labels were not exactly 0..K-1)
     class_list = sorted(unique_classes.tolist())
     class_to_super = { c: (idx % G) for idx, c in enumerate(class_list) }
 
-    # Remap labels into a 0..K-1 array
     super_labels = np.array([class_to_super[c] for c in labels ], dtype = int)
 
     sbm_data.super_memberships = super_labels 
 
-    # call the existing helper to build X
     X = _SimulateHierarchicalFeatures(
         labels=labels,
         feature_dim=feature_dim,
