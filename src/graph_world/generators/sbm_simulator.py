@@ -402,6 +402,7 @@ def SimulateNoisyFeatures(
     cluster_var: float = 1.0,
     noise_var: float = 1.0,
     normalize_features: bool = True,
+    noise_dim = None 
 ):
     """Generates 2·feature_dim-length node features: signal ‖ pure noise.
 
@@ -450,10 +451,13 @@ def SimulateNoisyFeatures(
         for c in sbm_data.feature_memberships
     ]) 
 
+    if not noise_dim:
+      noise_dim = feature_dim 
+    
     noise_feats = np.random.normal(
         loc=0.0,
         scale=np.sqrt(noise_var),
-        size=(signal_feats.shape[0], feature_dim),
+        size=(signal_feats.shape[0], noise_dim) ,
     )
 
     if normalize_features:
@@ -587,7 +591,9 @@ def GenerateStochasticBlockModelWithFeatures(
     edge_feature_dim=1,
     edge_center_distance=0.0,
     edge_cluster_variance=1.0,
-    normalize_features=True):
+    normalize_features=True,
+    noisy_features = False,
+    noise_dim = None):
   """Generates stochastic block model (SBM) with node features.
   Args:
     num_vertices: number of nodes in the graph.
@@ -617,20 +623,24 @@ def GenerateStochasticBlockModelWithFeatures(
   """
   result = StochasticBlockModel()
   SimulateSbm(result, num_vertices, num_edges, pi, prop_mat, out_degs)
-  # SimulateFeatures(result, 
-  #                 feature_center_distance,
-  #                 feature_dim,
-  #                 num_feature_groups,
-  #                 feature_group_match_type,
-  #                 feature_cluster_variance,
-  #                 normalize_features)
-  SimulateNoisyFeatures(sbm_data = result, 
-                  center_var= feature_center_distance,
-                  feature_dim=feature_dim,
-                  num_groups=num_feature_groups,
-                  match_type=feature_group_match_type,
-                  cluster_var = feature_cluster_variance,
-                  normalize_features=normalize_features)
+  if noisy_features:
+    SimulateNoisyFeatures(sbm_data = result, 
+                    center_var= feature_center_distance,
+                    feature_dim=feature_dim,
+                    num_groups=num_feature_groups,
+                    match_type=feature_group_match_type,
+                    cluster_var = feature_cluster_variance,
+                    normalize_features=normalize_features,
+                    noise_dim = noise_dim) 
+  else:
+    SimulateFeatures(result, 
+                feature_center_distance,
+                feature_dim,
+                num_feature_groups,
+                feature_group_match_type,
+                feature_cluster_variance,
+                normalize_features)
+    
   SimulateEdgeFeatures(result, edge_feature_dim,
                        edge_center_distance,
                        edge_cluster_variance)
