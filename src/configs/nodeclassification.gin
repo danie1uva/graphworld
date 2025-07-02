@@ -10,7 +10,7 @@ NodeClassificationBeamHandler.num_val_per_class = 5
 NodeClassificationBeamHandler.benchmarker_wrappers = [
   @GCN_/NNNodeBenchmark,
   @MLP_/NNNodeBenchmark,
-  # @HGCN_/NNNodeBenchmark,
+  @HGCN_/NNNodeBenchmark,
 ]
 
 include 'src/configs/nodeclassification_model_tuning.gin'

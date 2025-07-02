@@ -1,5 +1,5 @@
 # GCN & GNN hyperparameter ranges
-IN_CHANNELS = [32]
+IN_CHANNELS = [48]
 LR = [5e-4, 1e-3, 2e-3]
 HIDDEN_CHANNELS = [8, 16, 32]
 NUM_LAYERS = [1, 2, 3]
