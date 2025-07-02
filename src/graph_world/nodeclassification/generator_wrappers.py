@@ -152,7 +152,8 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                                generator_config['min_deg'],
                                generator_config['nvertex']),
       normalize_features=self._normalize_features,
-      noisy_features = self._noisy_feats 
+      noisy_features = self._noisy_feats,
+      noise_dim = self._noise_dim
     )
 
     return {'sample_id': sample_id,
