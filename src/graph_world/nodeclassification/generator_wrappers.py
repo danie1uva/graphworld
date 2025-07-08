@@ -171,8 +171,10 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
       noisy_features = self._noisy_feats,
       noise_dim = self._noise_dim
       )
+
     else:
       prop_mat=MakePropMat(generator_config['num_clusters'],generator_config['p_to_q_ratio'])
+      
       sbm_data = GenerateStochasticBlockModelWithFeatures(
       num_vertices=generator_config['nvertex'],
       num_edges=generator_config['nvertex'] * generator_config['avg_degree'],
