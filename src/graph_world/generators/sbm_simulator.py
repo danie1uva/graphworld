@@ -400,26 +400,22 @@ def SimulateNoisyFeatures(
     num_groups: int,
     match_type=MatchType.RANDOM,
     cluster_var: float = 1.0,
-    noise_var: float = 1.0,
+    noise_var: float = 0.2,
     normalize_features: bool = True,
     noise_dim = None 
 ):
-    """Generates 2·feature_dim-length node features: signal ‖ pure noise.
-
-    The first half is identical to *SimulateFeatures* (Gaussian around class
-    centres); the second half is i.i.d. Gaussian noise with variance *noise_var*.
+    """Generates feature_dim-length node features: signal + pure noise.
 
     Args
     ----
     sbm_data : StochasticBlockModel dataclass (must have `graph_memberships`)
     center_var : variance of the class centres (signal strength)
-    feature_dim : dimensionality of the *signal* block (overall output will be
-                  `2*feature_dim`)
+    feature_dim : dimensionality of the output block
     num_groups : number of class centres
     match_type : see original function
     cluster_var : intra-cluster variance of the signal block
     noise_var : variance of each coordinate in the noise block
-    normalize_features : z-normalise the **concatenated** features
+    normalize_features : z-normalise the signal features
 
     Raises
     ------
@@ -463,7 +459,7 @@ def SimulateNoisyFeatures(
     if normalize_features:
         signal_feats = normalize(signal_feats)
 
-    features = np.hstack([signal_feats, noise_feats])
+    features = noise_feats + signal_feats 
 
     sbm_data.node_features = features
 
