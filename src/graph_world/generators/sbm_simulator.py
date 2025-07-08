@@ -646,6 +646,79 @@ def GenerateStochasticBlockModelWithFeatures(
                        edge_cluster_variance)
   return result
 
+def GenerateHierarchicalStochasticBlockModelWithFeatures(
+    num_vertices,
+    num_edges,
+    pi,
+    prop_mat,
+    out_degs=None,
+    feature_center_distance=0.0,
+    feature_dim=0,
+    num_feature_groups=1,
+    feature_group_match_type=MatchType.RANDOM,
+    feature_cluster_variance=1.0,
+    edge_feature_dim=1,
+    edge_center_distance=0.0,
+    edge_cluster_variance=1.0,
+    normalize_features=True,
+    noisy_features = False,
+    noise_dim = None):
+  """Generates a hierarchical stochastic block model (SBM) with node features.
+  Args:
+    num_vertices: number of nodes in the graph.
+    num_edges: expected number of edges in the graph.
+    pi: interable of non-zero community size proportions. Must sum to 1.0.
+    prop_mat: square, symmetric matrix of community edge count rates. Example:
+      if diagonals are 2.0 and off-diagonals are 1.0, within-community edges are
+      twices as likely as between-community edges. In this case, it will hold three
+      differing values: the sub-intra prob, the super-intra prob and the super-inter prob,
+      where the first is the probability of an edge between nodes in the same sub-community
+      of a super-community, the second the prob. of edge between nodes in differening sub-communities,
+      same super, and lastly prob of edge between nodes in differing super-communities.
+    out_degs: Out-degree propensity for each node. If not provided, a constant
+      value will be used. Note that the values will be normalized inside each
+      group, if they are not already so.
+    feature_center_distance: distance between feature cluster centers. When this
+      is 0.0, the signal-to-noise ratio is 0.0. When equal to
+      feature_cluster_variance, SNR is 1.0.
+    feature_dim: dimension of node features.
+    num_feature_groups: number of feature clusters.
+    feature_group_match_type: see sbm_simulator.MatchType.
+    feature_cluster_variance: variance of feature clusters around their centers.
+      centers. Increasing this weakens node feature signal.
+    edge_feature_dim: dimension of edge features.
+    edge_center_distance: per-dimension distance between the intra-class and
+      inter-class means. Increasing this strengthens the edge feature signal.
+    edge_cluster_variance: variance of edge clusters around their centers.
+      Increasing this weakens the edge feature signal.
+  Returns:
+    result: a StochasticBlockModel data class.
+  """
+  result = StochasticBlockModel()
+  SimulateSbm(result, num_vertices, num_edges, pi, prop_mat, out_degs)
+  if noisy_features:
+    SimulateNoisyFeatures(sbm_data = result, 
+                    center_var= feature_center_distance,
+                    feature_dim=feature_dim,
+                    num_groups=num_feature_groups,
+                    match_type=feature_group_match_type,
+                    cluster_var = feature_cluster_variance,
+                    normalize_features=normalize_features,
+                    noise_dim = noise_dim) 
+  else:
+    SimulateFeatures(result, 
+                feature_center_distance,
+                feature_dim,
+                num_feature_groups,
+                feature_group_match_type,
+                feature_cluster_variance,
+                normalize_features)
+    
+  SimulateEdgeFeatures(result, edge_feature_dim,
+                       edge_center_distance,
+                       edge_cluster_variance)
+  return result
+
 def GenerateStochasticBlockModelWithHierarchicalFeatures(
     num_vertices,
     num_edges,
@@ -740,6 +813,35 @@ def MakePropMat(num_communities: int, p_to_q_ratio: float) -> np.ndarray:
   np.fill_diagonal(prop_mat, p_to_q_ratio)
   return prop_mat
 
+# helper function making PropMat in the hierarchical case
+def MakeHierarchicalPropMat(num_super_communities: int,
+                            subs_per_super: int,
+                            p_intra_sub: float,
+                            p_intra_super: float,
+                            p_inter_super: float) -> np.ndarray:
+
+  k = num_super_communities * subs_per_super
+  prop_mat = np.zeros((k, k))
+
+  for i in range(k):
+    for j in range(i, k):
+      super_i = i // subs_per_super
+      super_j = j // subs_per_super
+      
+      if i == j:
+        # Connection within the same sub-community
+        prop_mat[i, j] = p_intra_sub
+      elif super_i == super_j:
+        # Connection within the same super-community
+        prop_mat[i, j] = p_intra_super
+      else:
+        # Connection between different super-communities
+        prop_mat[i, j] = p_inter_super
+      
+      # Make the matrix symmetric
+      prop_mat[j, i] = prop_mat[i, j]
+      
+  return prop_mat
 
 # Helper function to create a degree set that follows a power law for the
 # 'out_degs' parameter in SBM construction.
