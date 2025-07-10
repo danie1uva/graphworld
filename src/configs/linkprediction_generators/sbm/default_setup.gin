@@ -15,3 +15,12 @@ SbmGeneratorWrapper.param_sampler_specs = %SBMSamplerSpec
 
 # Normalize node features (default true)
 SbmGeneratorWrapper.normalize_features = True
+
+# Decide Hierarchical Features or not 
+SbmGeneratorWrapper.hier_feats = False
+
+# Noisy features or not, and feature dim
+SbmGeneratorWrapper.noisy_feats = False
+
+# Hierarchical SBM or flat
+SbmGeneratorWrapper.hsbm = False 

@@ -40,12 +40,13 @@ class LPBenchmarker(Benchmarker):
 
     # remove meta entries from h_params
     self._epochs = benchmark_params['epochs']
+    self._patience = benchmark_params['patience']
     self._model = self._model_class(**h_params)
     self._lp_wrapper_model = GAE(self._model)
     # TODO(palowitch,tsitsulin): fill optimizer using param input instead.
     self._optimizer = torch.optim.Adam(self._model.parameters(),
-                                       lr=benchmark_params['lr'],
-                                       weight_decay=5e-4)
+                                       lr=h_params['lr'],
+                                       weight_decay=h_params['weight_decay'])
 
   def AdjustParams(self, generator_config):
     if 'num_clusters' in generator_config:
@@ -77,14 +78,25 @@ class LPBenchmarker(Benchmarker):
     results['ap'] = average_precision_score
     return results
 
-  def train(self, data):
+  def train(self, data, tuning_metric: str = 'rocauc'):
     losses = []
-    for epoch in range(self._epochs):
+    patience_counter = 0 
+    best_val_metric = 0  
+    for i in range(self._epochs):
       losses.append(float(self.train_step(data)))
+      val_metrics = self.test(data, test_on_val=True) 
+      if val_metrics[tuning_metric] > best_val_metric:
+        patience_counter = 0 
+        best_val_metric = val_metrics[tuning_metric]
+      else:
+        patience_counter += 1
+        if patience_counter > self._patience:
+          print(f'Early stopping at epoch {i} after exceeding patience of {self._patience}', flush=True)
+          break
     return losses
 
   def Benchmark(self, element,
-                tuning_metric: str = None,
+                tuning_metric: str = 'rocauc',
                 tuning_metric_is_loss: bool = False):
     torch_data = element['torch_data']
     skipped = element['skipped']
@@ -101,7 +113,7 @@ class LPBenchmarker(Benchmarker):
         'ap': 0,
     }
     out['test_metrics'] = {
-        'rocaus': 0,
+        'rocauc': 0,
         'ap': 0,
     }
 
@@ -111,12 +123,12 @@ class LPBenchmarker(Benchmarker):
 
     out['losses'] = None
     try:
-      out['losses'] = self.train(torch_data)
+      out['losses'] = self.train(torch_data, tuning_metric)
       # Divide by zero sometimes happens with the ksample masks.
       out['val_metrics'].update(self.test(torch_data, test_on_val=True))
       out['test_metrics'].update(self.test(torch_data, test_on_val=False))
-    except Exception:
-      logging.info(f'Failed to run for sample id {sample_id}')
+    except Exception as e:
+      print(f'Failed to run for sample id {sample_id} using model {self._model_name}: {str(e)}')
       out['skipped'] = True
 
     return out

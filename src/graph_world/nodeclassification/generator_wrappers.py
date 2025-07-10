@@ -31,7 +31,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                lfr_params=None, 
                hier_feats = False, 
                noisy_feats = False, 
-               noise_dim = None,
                hsbm = False): 
     super(SbmGeneratorWrapper, self).__init__(param_sampler_specs)
     self._marginal = marginal
@@ -40,7 +39,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
     self._lfr_params = lfr_params
     self._hier_feats = hier_feats
     self._noisy_feats = noisy_feats
-    self._noise_dim = noise_dim 
     self._hsbm = hsbm
     self._AddSamplerFn('alpha', self._SampleUniformFloat) 
     self._AddSamplerFn('nvertex', self._SampleUniformInteger)
@@ -54,7 +52,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
     self._AddSamplerFn('cluster_size_slope', self._SampleUniformFloat)
     self._AddSamplerFn('power_exponent', self._SampleUniformFloat)
     self._AddSamplerFn('min_deg', self._SampleUniformInteger)
-    self._AddSamplerFn('super_group_strat', self._SampleUniformInteger)
     if use_generated_lfr_communities:
       self._AddLFRParameters()
 
@@ -87,19 +84,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
     generator_config['hier_feats'] = self._hier_feats
     generator_config['noisy_feats'] = self._noisy_feats
     generator_config['hsbm'] = self._hsbm
-
-    if generator_config['super_group_strat'] == 0.0:
-      # binary
-      super_group_strat = 'binary'
-
-    elif generator_config['super_group_strat'] == 1.0:
-      # half
-      super_group_strat = 'half'
-
-    else:  # 'sqrt_ceil'
-      super_group_strat = 'sqrt_ceil'
-
-    generator_config['super_group_method'] = super_group_strat
 
     if self._use_generated_lfr_communities: 
       _, lfr_model = SimulateLFRWrapper(generator_config['nvertex'], 
@@ -140,8 +124,7 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
               out_degs=MakeDegrees(generator_config['power_exponent'], 
                                       generator_config['min_deg'],
                                       generator_config['nvertex']),
-              normalize_features=self._normalize_features,
-              super_group_strategy = generator_config['super_group_strat']
+              normalize_features=self._normalize_features
               )
     
     elif self._hsbm:
@@ -169,12 +152,11 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                                generator_config['nvertex']),
       normalize_features=self._normalize_features,
       noisy_features = self._noisy_feats,
-      noise_dim = self._noise_dim
       )
 
     else:
       prop_mat=MakePropMat(generator_config['num_clusters'],generator_config['p_to_q_ratio'])
-      
+
       sbm_data = GenerateStochasticBlockModelWithFeatures(
       num_vertices=generator_config['nvertex'],
       num_edges=generator_config['nvertex'] * generator_config['avg_degree'],
@@ -191,7 +173,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                                generator_config['nvertex']),
       normalize_features=self._normalize_features,
       noisy_features = self._noisy_feats,
-      noise_dim = self._noise_dim
     )
 
     return {'sample_id': sample_id,

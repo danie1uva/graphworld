@@ -28,7 +28,6 @@ SbmGeneratorWrapper.hier_feats = False
 
 # Noisy features or not, and feature dim
 SbmGeneratorWrapper.noisy_feats = False
-SbmGeneratorWrapper.noise_dim = None 
 
 # Hierarchical SBM or flat
 SbmGeneratorWrapper.hsbm = False 

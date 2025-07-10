@@ -64,7 +64,3 @@ min_deg/ParamSamplerSpec.max_val = 20
 alpha/ParamSamplerSpec.name = "alpha"
 alpha/ParamSamplerSpec.min_val = .8
 alpha/ParamSamplerSpec.max_val = .8
-
-super_group_strat/ParamSamplerSpec.name = "super_group_strat"
-super_group_strat/ParamSamplerSpec.min_val = 0.0
-super_group_strat/ParamSamplerSpec.max_val = 3.0
