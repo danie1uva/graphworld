@@ -127,9 +127,9 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
       torch_data = linkprediction_data_to_torchgeo_data(
           linkprediction_data, self._training_ratio, self._tuning_ratio)
       out['torch_data'] = torch_data
-    except:
+    except Exception as e:
       out['skipped'] = True
-      print(f'failed to convert {sample_id}')
+      print(f'failed to convert {sample_id}: {str(e)}')
       logging.info(
            ('Failed to convert linkprediction_data to torchgeo'
             'for sample id %d'), sample_id)
