@@ -31,7 +31,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                lfr_params=None, 
                hier_feats = False, 
                noisy_feats = False, 
-               noise_dim = None,
                hsbm = False): 
     super(SbmGeneratorWrapper, self).__init__(param_sampler_specs)
     self._marginal = marginal
@@ -40,7 +39,6 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
     self._lfr_params = lfr_params
     self._hier_feats = hier_feats
     self._noisy_feats = noisy_feats
-    self._noise_dim = noise_dim 
     self._hsbm = hsbm
     self._AddSamplerFn('alpha', self._SampleUniformFloat) 
     self._AddSamplerFn('nvertex', self._SampleUniformInteger)
@@ -168,8 +166,7 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                                generator_config['min_deg'],
                                generator_config['nvertex']),
       normalize_features=self._normalize_features,
-      noisy_features = self._noisy_feats,
-      noise_dim = self._noise_dim
+      noisy_features = self._noisy_feats
       )
 
     else:
@@ -190,8 +187,7 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                                generator_config['min_deg'],
                                generator_config['nvertex']),
       normalize_features=self._normalize_features,
-      noisy_features = self._noisy_feats,
-      noise_dim = self._noise_dim
+      noisy_features = self._noisy_feats
     )
 
     return {'sample_id': sample_id,

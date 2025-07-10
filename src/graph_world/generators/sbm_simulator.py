@@ -400,9 +400,8 @@ def SimulateNoisyFeatures(
     num_groups: int,
     match_type=MatchType.RANDOM,
     cluster_var: float = 1.0,
-    noise_var: float = 0.2,
-    normalize_features: bool = True,
-    noise_dim = None 
+    noise_var: float = 0.25,
+    normalize_features: bool = True
 ):
     """Generates feature_dim-length node features: signal + pure noise.
 
@@ -446,14 +445,11 @@ def SimulateNoisyFeatures(
         np.random.multivariate_normal(centres[c], cluster_cov)
         for c in sbm_data.feature_memberships
     ]) 
-
-    if not noise_dim:
-      noise_dim = feature_dim 
     
     noise_feats = np.random.normal(
         loc=0.0,
         scale=np.sqrt(noise_var),
-        size=(signal_feats.shape[0], noise_dim) ,
+        size=(signal_feats.shape)
     )
 
     if normalize_features:
@@ -588,8 +584,7 @@ def GenerateStochasticBlockModelWithFeatures(
     edge_center_distance=0.0,
     edge_cluster_variance=1.0,
     normalize_features=True,
-    noisy_features = False,
-    noise_dim = None):
+    noisy_features = False):
   """Generates stochastic block model (SBM) with node features.
   Args:
     num_vertices: number of nodes in the graph.
@@ -626,8 +621,7 @@ def GenerateStochasticBlockModelWithFeatures(
                     num_groups=num_feature_groups,
                     match_type=feature_group_match_type,
                     cluster_var = feature_cluster_variance,
-                    normalize_features=normalize_features,
-                    noise_dim = noise_dim) 
+                    normalize_features=normalize_features) 
   else:
     SimulateFeatures(result, 
                 feature_center_distance,
@@ -657,8 +651,7 @@ def GenerateHierarchicalStochasticBlockModelWithFeatures(
     edge_center_distance=0.0,
     edge_cluster_variance=1.0,
     normalize_features=True,
-    noisy_features = False,
-    noise_dim = None):
+    noisy_features = False):
   """Generates a hierarchical stochastic block model (SBM) with node features.
   Args:
     num_vertices: number of nodes in the graph.
@@ -699,8 +692,7 @@ def GenerateHierarchicalStochasticBlockModelWithFeatures(
                     num_groups=num_feature_groups,
                     match_type=feature_group_match_type,
                     cluster_var = feature_cluster_variance,
-                    normalize_features=normalize_features,
-                    noise_dim = noise_dim) 
+                    normalize_features=normalize_features) 
   else:
     SimulateFeatures(result, 
                 feature_center_distance,
