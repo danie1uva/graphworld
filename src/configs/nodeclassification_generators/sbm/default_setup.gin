@@ -30,4 +30,4 @@ SbmGeneratorWrapper.hier_feats = False
 SbmGeneratorWrapper.noisy_feats = True
 
 # Hierarchical SBM or flat
-SbmGeneratorWrapper.hsbm = False 
+SbmGeneratorWrapper.hsbm = True 
