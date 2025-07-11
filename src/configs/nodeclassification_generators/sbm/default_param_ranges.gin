@@ -10,8 +10,7 @@ SBMSamplerSpec = [
   @cluster_size_slope/ParamSamplerSpec(),
   @power_exponent/ParamSamplerSpec(),
   @min_deg/ParamSamplerSpec(),
-  @alpha/ParamSamplerSpec(),
-  @super_group_strat/ParamSamplerSpec()
+  @alpha/ParamSamplerSpec()
 ]
 
 nvertex/ParamSamplerSpec.name = "nvertex"
@@ -19,8 +18,8 @@ nvertex/ParamSamplerSpec.min_val = 2000
 nvertex/ParamSamplerSpec.max_val = 2000
 
 p_to_q_ratio/ParamSamplerSpec.name = "p_to_q_ratio"
-p_to_q_ratio/ParamSamplerSpec.min_val = 3.0
-p_to_q_ratio/ParamSamplerSpec.max_val = 3.0
+p_to_q_ratio/ParamSamplerSpec.min_val = 7.0
+p_to_q_ratio/ParamSamplerSpec.max_val = 7.0
 
 avg_degree/ParamSamplerSpec.name = "avg_degree"
 avg_degree/ParamSamplerSpec.min_val = 10.0
@@ -64,7 +63,3 @@ min_deg/ParamSamplerSpec.max_val = 2
 alpha/ParamSamplerSpec.name = "alpha"
 alpha/ParamSamplerSpec.min_val = .8
 alpha/ParamSamplerSpec.max_val = .8
-
-super_group_strat/ParamSamplerSpec.name = "super_group_strat"
-super_group_strat/ParamSamplerSpec.min_val = 0.0
-super_group_strat/ParamSamplerSpec.max_val = 3.0
