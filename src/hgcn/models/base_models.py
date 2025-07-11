@@ -101,8 +101,8 @@ class LPModel(BaseModel):
         self.nb_edges = args.nb_edges
 
     def decode(self, h, idx):
-        if self.manifold_name == 'Euclidean':
-            h = self.manifold.normalize(h)
+        # if self.manifold_name == 'Euclidean':
+        #     h = self.manifold.normalize(h)
         emb_in = h[idx[:, 0], :]
         emb_out = h[idx[:, 1], :]
         sqdist = self.manifold.sqdist(emb_in, emb_out, self.c)

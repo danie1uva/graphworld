@@ -28,7 +28,8 @@ HGCN_/NNNodeBenchmark.h_params = {
     'dropout'         : %DROPOUT,
     'lr'              : %LR,
     'weight_decay'    : %WEIGHT_DECAY,
-    'c'               : %C,            
+    'c'               : %C,
+    'task'            : %TASK    
 }
 
 # MLP setup

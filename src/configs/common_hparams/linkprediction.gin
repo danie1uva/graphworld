@@ -10,4 +10,4 @@ PATIENCE = [15]
 
 # HGCN specific hyperparameter
 C = [None, .5, 1.0, 2.0]
-TASK = ['nc']
+TASK = ['lp']

@@ -10,8 +10,7 @@ SBMSamplerSpec = [
   @cluster_size_slope/ParamSamplerSpec(),
   @power_exponent/ParamSamplerSpec(),
   @min_deg/ParamSamplerSpec(),
-  @alpha/ParamSamplerSpec(),
-  @super_group_strat/ParamSamplerSpec()
+  @alpha/ParamSamplerSpec()
 ]
 
 nvertex/ParamSamplerSpec.name = "nvertex"

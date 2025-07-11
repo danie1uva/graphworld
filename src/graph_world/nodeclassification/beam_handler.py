@@ -104,8 +104,7 @@ class ComputeNodeClassificationMetrics(beam.DoFn):
       out['metrics'] = graph_metrics(element['data'].graph)
       out['metrics'].update(NodeLabelMetrics(element['data'].graph,
                                              element['data'].graph_memberships,
-                                             element['data'].node_features,
-                                             element['data'].super_memberships))
+                                             element['data'].node_features))
       
     except Exception as e:
       out['skipped'] = True

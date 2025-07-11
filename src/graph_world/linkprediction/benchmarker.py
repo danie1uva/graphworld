@@ -34,9 +34,8 @@ from ..beam.benchmarker import Benchmarker, BenchmarkerWrapper
 
 # Link prediction
 class LPBenchmarker(Benchmarker):
-  def __init__(self, generator_config, model_class, benchmark_params, h_params):
-
-    super().__init__(generator_config, model_class, benchmark_params, h_params)
+  def __init__(self, generator_config, model_class, benchmark_params, h_params, torch_data=None):
+    super().__init__(generator_config, model_class, benchmark_params, h_params, torch_data)
 
     # remove meta entries from h_params
     self._epochs = benchmark_params['epochs']
@@ -48,7 +47,8 @@ class LPBenchmarker(Benchmarker):
                                        lr=h_params['lr'],
                                        weight_decay=h_params['weight_decay'])
 
-  def AdjustParams(self, generator_config):
+  def AdjustParams(self, generator_config, torch_data=None):
+    # torch_data is unused in this specific implementation but is required by the parent class
     if 'num_clusters' in generator_config:
       self._h_params['out_channels'] = generator_config['num_clusters']
 

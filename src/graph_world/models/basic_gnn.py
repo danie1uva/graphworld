@@ -520,6 +520,7 @@ class HGCN(nn.Module):
                  dropout: float = 0.5,
                  bias: bool = True,
                  act_name: str = 'relu',
+                 task: str = 'nc',
                  **kwargs): 
         super().__init__()
 
@@ -531,6 +532,7 @@ class HGCN(nn.Module):
         self.bias            = bias
         self.manifold_name   = manifold
         self.act             = act_name
+        self.task            = task
 
         # 1) build a dummy 'args' namespace to feed into Chami’s code
         args = lambda **kw: None
@@ -549,7 +551,7 @@ class HGCN(nn.Module):
         args.local_agg  = False         # your choice
         args.alpha      = 0.2           # only for HAT-style
         args.act        = act_name
-        args.task       = 'nc'
+        args.task       = task
         args.c          = c 
         args.cuda       = -1 
 

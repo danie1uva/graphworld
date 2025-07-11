@@ -159,7 +159,7 @@ def _get_average_degree(degrees):
   return np.mean(degrees)
 
 
-def NodeLabelMetrics(graph, labels, features, super_labels):
+def NodeLabelMetrics(graph, labels, features):
   metrics = {'edge_homogeneity': edge_homogeneity(graph, labels)}
   normed_features = matrix_row_norm(features)
   in_avg, out_avg = feature_homogeneity(normed_features, labels)
