@@ -31,6 +31,9 @@ from torch_geometric.nn import GAE
 from ..models.models import PyGBasicGraphModel
 from ..beam.benchmarker import Benchmarker, BenchmarkerWrapper
 
+from hgcn.models.decoders import HyperbolicDecoder
+from models.basic_gnn import HGCNLinkPrediction
+
 
 # Link prediction
 class LPBenchmarker(Benchmarker):
@@ -41,7 +44,15 @@ class LPBenchmarker(Benchmarker):
     self._epochs = benchmark_params['epochs']
     self._patience = benchmark_params['patience']
     self._model = self._model_class(**h_params)
-    self._lp_wrapper_model = GAE(self._model)
+
+    decoder = None
+    if isinstance(self._model, HGCNLinkPrediction):
+        print("Using custom HyperbolicDecoder.")
+        # Pass the curvature and manifold object from the encoder to the decoder
+        decoder = HyperbolicDecoder(c=self._model.c, manifold=self._model.encoder.manifold)
+
+
+    self._lp_wrapper_model = GAE(self._model, decoder = decoder)
     # TODO(palowitch,tsitsulin): fill optimizer using param input instead.
     self._optimizer = torch.optim.Adam(self._model.parameters(),
                                        lr=h_params['lr'],

@@ -13,13 +13,13 @@ GCN_/LPBenchmark.h_params = {
     'weight_decay'    : %WEIGHT_DECAY,
 }
 # HGCN setup
-HGCN_/LPBenchmark.model_class = @HGCN
-HGCN_/LPBenchmark.benchmark_params = {
+HGCNLinkPrediction_/LPBenchmark.model_class = @HGCN
+HGCNLinkPrediction_/LPBenchmark.benchmark_params = {
     'epochs'  : %EPOCHS,
     'patience': %PATIENCE,
 }
 
-HGCN_/LPBenchmark.h_params = {
+HGCNLinkPrediction_/LPBenchmark.h_params = {
     'in_channels'     : %IN_CHANNELS,
     'hidden_channels' : %HIDDEN_CHANNELS,
     'num_layers'      : %NUM_LAYERS,

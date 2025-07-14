@@ -2,6 +2,9 @@
 import hgcn.manifolds as manifolds
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
+import torch.nn as nn
+import hgcn.manifolds.base as Manifold
 
 from hgcn.layers.att_layers import GraphAttentionLayer
 from hgcn.layers.layers import GraphConvolution, Linear
@@ -70,6 +73,41 @@ class LinearDecoder(Decoder):
         return 'in_features={}, out_features={}, bias={}, c={}'.format(
                 self.input_dim, self.output_dim, self.bias, self.c
         )
+
+class HyperbolicDecoder(nn.Module):
+    """
+    A manifold-aware decoder for link prediction in hyperbolic space.
+    Plugs directly into PyTorch Geometric's GAE model.
+    """
+    def __init__(self, c: torch.Tensor, manifold: Manifold):
+        super().__init__()
+        self.c = c
+        self.manifold = manifold
+
+    def forward(self, z: torch.Tensor, edge_index: torch.Tensor, sigmoid: bool = False) -> torch.Tensor:
+        """
+        Calculates a score for each edge. The GAE's recon_loss will handle
+        applying the sigmoid and loss function.
+
+        Args:
+            z: Node embeddings from the encoder.
+            edge_index: The edges for which to predict existence.
+            sigmoid: (unused) The GAE passes this, but its loss function is
+                     more stable with raw logits.
+
+        Returns:
+            A tensor of scores (logits) for each edge.
+        """
+        # Get the embeddings for the source and target nodes of each edge
+        emb_in = z[edge_index[0]]
+        emb_out = z[edge_index[1]]
+
+        # Calculate the squared hyperbolic distance
+        sqdist = self.manifold.sqdist(emb_in, emb_out, self.c)
+
+        # Return the negative distance. Smaller distance = higher score (logit).
+        # This works seamlessly with BCEWithLogitsLoss used by GAE.
+        return -sqdist
 
 
 model2decoder = {

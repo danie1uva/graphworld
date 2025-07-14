@@ -611,3 +611,90 @@ class HGCN(nn.Module):
 
         # 3) Reset the decoder’s linear head
         self.decoder.cls.reset_parameters()
+
+
+@gin.configurable
+class HGCNLinkPrediction(nn.Module):
+    """
+    Hyperbolic GCN for link prediction, designed to work with GraphWorld's
+    link prediction benchmarker.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_channels: int,
+        num_layers: int,
+        c: Optional[float] = None,
+        manifold: str = "Hyperboloid",
+        dropout: float = 0.5,
+        bias: bool = True,
+        act_name: str = "relu",
+        **kwargs
+    ):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.num_layers = num_layers
+        self.manifold_name = manifold
+
+        # Create a dummy 'args' namespace for Chami's implementation
+        args = type("args", (), {})()
+        if manifold == "Hyperboloid":
+            args.feat_dim = in_channels + 1
+        else:
+            args.feat_dim = in_channels
+
+        args.manifold = manifold
+        args.num_layers = num_layers + 1
+        args.dim = hidden_channels
+        args.dropout = dropout
+        args.bias = bias
+        args.use_att = False
+        args.local_agg = False
+        args.act = act_name
+        args.c = c
+        args.cuda = -1
+        # The 'task' argument is not needed for the encoder
+        # args.task = 'lp'
+        # The 'n_classes' argument is not needed for the encoder
+        # args.n_classes = out_channels
+
+        if c is None:
+            self.c = nn.Parameter(torch.tensor([1.0]), requires_grad=True)
+        else:
+            self.register_buffer("c", torch.tensor([c]))
+
+        # Instantiate the encoder from the original implementation
+        self.encoder = _HGCNEncoder(self.c, args)
+
+    def forward(self, x, edge_index):
+        # Prepare x for Hyperboloid if necessary
+        if self.encoder.manifold.name == "Hyperboloid":
+            zero = torch.zeros_like(x[:, :1])
+            x = torch.cat([zero, x], dim=1)
+
+        adj = to_dense_adj(edge_index, max_num_nodes=x.size(0))[0]
+
+        # Encode into hyperbolic embeddings
+        h = self.encoder.encode(x, adj)
+        return h
+
+    def reset_parameters(self):
+        """
+        Resets all trainable parameters to their initial state.
+        """
+        if isinstance(self.c, nn.Parameter):
+            with torch.no_grad():
+                self.c.fill_(1.0)
+
+        for layer in self.encoder.layers:
+            layer.reset_parameters()
+
+    def __repr__(self):
+        return (
+            f"HGCNLinkPrediction(in={self.in_channels}, hid={self.hidden_channels}, "
+            f"layers={self.num_layers}, manifold={self.manifold_name}, "
+            f"c={self.c.item() if isinstance(self.c, torch.Tensor) else self.c})"
+        )
