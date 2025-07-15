@@ -24,10 +24,10 @@ SbmGeneratorWrapper.use_generated_lfr_communities = False
 SbmGeneratorWrapper.lfr_params = %LFRSamplerSpec
 
 # Decide Hierarchical Features or not 
-SbmGeneratorWrapper.hier_feats = False
+SbmGeneratorWrapper.hier_feats = True
 
 # Noisy features or not, and feature dim
 SbmGeneratorWrapper.noisy_feats = True
 
 # Hierarchical SBM or flat
-SbmGeneratorWrapper.hsbm = True 
+SbmGeneratorWrapper.hsbm = False 

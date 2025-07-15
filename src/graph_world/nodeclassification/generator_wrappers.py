@@ -52,6 +52,7 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
     self._AddSamplerFn('cluster_size_slope', self._SampleUniformFloat)
     self._AddSamplerFn('power_exponent', self._SampleUniformFloat)
     self._AddSamplerFn('min_deg', self._SampleUniformInteger)
+    self._AddSamplerFn('noise_var', self._SampleUniformFloat) 
     if use_generated_lfr_communities:
       self._AddLFRParameters()
 
@@ -124,11 +125,12 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
               out_degs=MakeDegrees(generator_config['power_exponent'], 
                                       generator_config['min_deg'],
                                       generator_config['nvertex']),
-              normalize_features=self._normalize_features
+              normalize_features=self._normalize_features,
+              noisy_features = self._noisy_feats,
+              noise_var = generator_config['noise_var']
               )
     
-    else:
-         
+    else: 
       if self._hsbm:
           prop_mat = MakeHierarchicalPropMat(
           num_super_communities=2,
@@ -155,7 +157,8 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
                                generator_config['min_deg'],
                                generator_config['nvertex']),
       normalize_features=self._normalize_features,
-      noisy_features = self._noisy_feats
+      noisy_features = self._noisy_feats,
+      noise_var = generator_config['noise_var'] 
       )
 
     return {'sample_id': sample_id,
