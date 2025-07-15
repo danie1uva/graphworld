@@ -29,10 +29,10 @@ import torch
 from torch_geometric.nn import GAE
 
 from ..models.models import PyGBasicGraphModel
+from ..models.basic_gnn import HGCNLinkPrediction
 from ..beam.benchmarker import Benchmarker, BenchmarkerWrapper
 
 from hgcn.models.decoders import HyperbolicDecoder
-from models.basic_gnn import HGCNLinkPrediction
 
 
 # Link prediction

@@ -74,6 +74,10 @@ class HyperbolicGraphConvolution(nn.Module):
         output = h, adj
         return output
 
+    def reset_parameters(self):
+        self.linear.reset_parameters()
+        self.agg.reset_parameters()
+
 
 class HypLinear(nn.Module):
     """
@@ -153,6 +157,14 @@ class HypAgg(Module):
             support_t = torch.spmm(adj, x_tangent)
         output = self.manifold.proj(self.manifold.expmap0(support_t, c=self.c), c=self.c)
         return output
+
+    def _weight_reset(self, m):
+        if hasattr(m, 'reset_parameters'):
+            m.reset_parameters()
+
+    def reset_parameters(self):
+        if self.use_att:
+            self.att.apply(self._weight_reset)
 
     def extra_repr(self):
         return 'c={}'.format(self.c)

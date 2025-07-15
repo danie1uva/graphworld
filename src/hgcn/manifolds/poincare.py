@@ -24,11 +24,18 @@ class PoincareBall(Manifold):
 
     def sqdist(self, p1, p2, c):
         sqrt_c = c ** 0.5
-        dist_c = artanh(
-            sqrt_c * self.mobius_add(-p1, p2, c, dim=-1).norm(dim=-1, p=2, keepdim=False)
-        )
+        
+        artanh_arg = sqrt_c * self.mobius_add(-p1, p2, c, dim=-1).norm(dim=-1, p=2, keepdim=False)
+        
+        # Clamp the input to artanh to prevent NaNs
+        clipped_artanh_arg = artanh_arg.clamp_max(1.0 - 1e-7)
+        
+        dist_c = artanh(clipped_artanh_arg)
         dist = dist_c * 2 / sqrt_c
-        return dist ** 2
+
+        # Clamp the final output distance to prevent exploding logits
+        return torch.clamp(dist ** 2, max=50.0)
+        # ---------------------
 
     def _lambda_x(self, x, c):
         x_sqnorm = torch.sum(x.data.pow(2), dim=-1, keepdim=True)
@@ -79,7 +86,14 @@ class PoincareBall(Manifold):
     def logmap0(self, p, c):
         sqrt_c = c ** 0.5
         p_norm = p.norm(dim=-1, p=2, keepdim=True).clamp_min(self.min_norm)
-        scale = 1. / sqrt_c * artanh(sqrt_c * p_norm) / p_norm
+        
+        # --- THIS IS THE FIX ---
+        # Clamp the input to this artanh call as well
+        artanh_arg = sqrt_c * p_norm
+        clipped_artanh_arg = artanh_arg.clamp_max(1.0 - 1e-7)
+        scale = 1. / sqrt_c * artanh(clipped_artanh_arg) / p_norm
+        # -----------------------
+        
         return scale * p
 
     def mobius_add(self, x, y, c, dim=-1):
@@ -93,10 +107,22 @@ class PoincareBall(Manifold):
     def mobius_matvec(self, m, x, c):
         sqrt_c = c ** 0.5
         x_norm = x.norm(dim=-1, keepdim=True, p=2).clamp_min(self.min_norm)
+
+        # --- THIS IS THE FIX ---
+        # Clamp the input to the artanh call to prevent NaNs.
+        artanh_arg = sqrt_c * x_norm
+        clipped_artanh_arg = artanh_arg.clamp_max(1.0 - 1e-7)
+        # ----------------------------
+
         mx = x @ m.transpose(-1, -2)
         mx_norm = mx.norm(dim=-1, keepdim=True, p=2).clamp_min(self.min_norm)
-        res_c = tanh(mx_norm / x_norm * artanh(sqrt_c * x_norm)) * mx / (mx_norm * sqrt_c)
-        cond = (mx == 0).prod(-1, keepdim=True, dtype=torch.uint8)
+
+        # Use the clamped argument in the calculation
+        # The line below now uses clipped_artanh_arg
+        res_c = tanh(mx_norm / x_norm * artanh(clipped_artanh_arg)) * mx / (mx_norm * sqrt_c)
+
+        # This part handles a zero-vector case and is where the UserWarning comes from
+        cond = (mx == 0).prod(-1, keepdim=True, dtype=torch.bool) # Use bool to fix warning
         res_0 = torch.zeros(1, dtype=res_c.dtype, device=res_c.device)
         res = torch.where(cond, res_0, res_c)
         return res

@@ -656,8 +656,7 @@ class HGCNLinkPrediction(nn.Module):
         args.act = act_name
         args.c = c
         args.cuda = -1
-        # The 'task' argument is not needed for the encoder
-        # args.task = 'lp'
+        args.task = 'lp'
         # The 'n_classes' argument is not needed for the encoder
         # args.n_classes = out_channels
 
@@ -668,6 +667,8 @@ class HGCNLinkPrediction(nn.Module):
 
         # Instantiate the encoder from the original implementation
         self.encoder = _HGCNEncoder(self.c, args)
+
+        print(self.__repr__())
 
     def forward(self, x, edge_index):
         # Prepare x for Hyperboloid if necessary
