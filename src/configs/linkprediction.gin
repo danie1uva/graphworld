@@ -9,7 +9,7 @@ LinkPredictionBeamHandler.tuning_metric = "rocauc"
 LinkPredictionBeamHandler.benchmarker_wrappers = [
   @MLP_/LPBenchmark,
   @GCN_/LPBenchmark,
-  @HGCNLinkPrediction_/LPBenchmark,
+  # @HGCNLinkPrediction_/LPBenchmark,
 ]
 
 include 'src/configs/linkprediction_model_tuning.gin'
