@@ -213,8 +213,7 @@ def calculate_super_cluster_performance(
     Returns:
       The ROC AUC OvR score for the super-cluster task.
     """
-    sub_to_super_map = {k: k // (num_sub_clusters // num_super_clusters) 
-                        for k in range(num_sub_clusters)}
+    sub_to_super_map = {k: k % num_super_clusters for k in range(num_sub_clusters)}
     
     y_true_supercluster = np.array([sub_to_super_map[c] for c in y_true_subcluster])
     y_pred_proba_supercluster = np.zeros((y_pred_proba.shape[0], num_super_clusters))
