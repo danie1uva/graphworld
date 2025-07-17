@@ -148,6 +148,7 @@ class ConvertToTorchGeoDataParDo(beam.DoFn):
           nodeclassification_data)
       out['torch_data'] = torch_data
       out['gt_data'] = nodeclassification_data.graph
+      out['super_mem_data'] = nodeclassification_data.super_memberships
 
       torchgeo_stats = {
         'nodes': torch_data.num_nodes,

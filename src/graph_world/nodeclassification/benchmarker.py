@@ -47,6 +47,7 @@ class NNNodeBenchmarker(Benchmarker):
     self._train_mask = None
     self._val_mask = None
     self._test_mask = None
+    self._super_memberships = None
 
   def AdjustParams(self, generator_config, torch_data):
     if self._h_params is not None:
@@ -98,10 +99,9 @@ class NNNodeBenchmarker(Benchmarker):
           rocauc_ovo = sklearn.metrics.roc_auc_score(correct_onehot, pred, multi_class='ovo')
           logloss = sklearn.metrics.log_loss(correct_onehot, pred)
 
-          if hasattr(data, 'super_memberships') and data.super_memberships is not None:
-              
-              true_super_labels = data.super_memberships[mask].numpy()
-              num_super_clusters = len(np.unique(data.super_memberships.numpy()))
+
+          if self._super_memberships is not None:
+              num_super_clusters = len(np.unique(self._super_memberships))
               rocauc_ovr_super = calculate_super_cluster_performance(
                   y_pred_proba=pred,
                   y_true_subcluster=correct,
@@ -163,6 +163,7 @@ class NNNodeBenchmarker(Benchmarker):
     masks = element['masks']
     skipped = element['skipped']
     sample_id = element['sample_id']
+    self._super_memberships = element['super_mem_data']
 
     out = {
       'skipped': skipped,

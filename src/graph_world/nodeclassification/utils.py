@@ -217,15 +217,17 @@ def calculate_super_cluster_performance(
                         for k in range(num_sub_clusters)}
     
     y_true_supercluster = np.array([sub_to_super_map[c] for c in y_true_subcluster])
-
     y_pred_proba_supercluster = np.zeros((y_pred_proba.shape[0], num_super_clusters))
     for sub_k, super_g in sub_to_super_map.items():
         y_pred_proba_supercluster[:, super_g] += y_pred_proba[:, sub_k]
+    
+    y_true_onehot = np.eye(num_super_clusters)[y_true_supercluster]
+
         
     # Step 4: Calculate the ROC AUC score on the super-cluster task.
     super_cluster_score = roc_auc_score(
-        y_true_supercluster,
-        y_pred_proba_supercluster,
+        y_true = y_true_onehot,
+        y_score = y_pred_proba_supercluster,
         multi_class='ovr'
     )
     
