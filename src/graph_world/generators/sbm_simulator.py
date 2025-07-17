@@ -632,7 +632,7 @@ def GenerateStochasticBlockModelWithHierarchicalFeatures(
     normalize_features=True,
     noisy_features = False,
     noise_var = 0.25):
-  """Generates stochastic block model (SBM) with node features.
+  """Generates stochastic block model (SBM) with hierarchical node features.
   Args:
     num_vertices: number of nodes in the graph.
     num_edges: expected number of edges in the graph.

@@ -26,6 +26,8 @@ from torch_geometric.data import Data
 from torch_geometric.utils import from_networkx
 
 import networkx as nx
+from sklearn.metrics import roc_auc_score
+import numpy as np
 
 
 @dataclasses.dataclass
@@ -192,3 +194,39 @@ def get_label_masks(
                            f"minimum required is {min_test}.")
 
     return train_mask, val_mask, test_mask
+
+def calculate_super_cluster_performance(
+    y_pred_proba, 
+    y_true_subcluster, 
+    num_sub_clusters: int,
+    num_super_clusters: int):
+    """
+    Calculates the ROC AUC OvR score for the super-cluster classification task.
+
+    Args:
+      y_pred_proba: The model's raw probability outputs. 
+                    Shape: (num_nodes, num_sub_clusters).
+      y_true_subcluster: The ground-truth sub-cluster labels.
+      num_sub_clusters: The total number of sub-clusters (e.g., 8).
+      num_super_clusters: The total number of super-clusters (e.g., 2).
+
+    Returns:
+      The ROC AUC OvR score for the super-cluster task.
+    """
+    sub_to_super_map = {k: k // (num_sub_clusters // num_super_clusters) 
+                        for k in range(num_sub_clusters)}
+    
+    y_true_supercluster = np.array([sub_to_super_map[c] for c in y_true_subcluster])
+
+    y_pred_proba_supercluster = np.zeros((y_pred_proba.shape[0], num_super_clusters))
+    for sub_k, super_g in sub_to_super_map.items():
+        y_pred_proba_supercluster[:, super_g] += y_pred_proba[:, sub_k]
+        
+    # Step 4: Calculate the ROC AUC score on the super-cluster task.
+    super_cluster_score = roc_auc_score(
+        y_true_supercluster,
+        y_pred_proba_supercluster,
+        multi_class='ovr'
+    )
+    
+    return super_cluster_score

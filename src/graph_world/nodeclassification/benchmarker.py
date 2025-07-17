@@ -29,6 +29,7 @@ import torch
 
 from ..models.models import PyGBasicGraphModel
 from ..beam.benchmarker import Benchmarker, BenchmarkerWrapper
+from .utils import calculate_super_cluster_performance
 
 
 class NNNodeBenchmarker(Benchmarker):
@@ -72,44 +73,57 @@ class NNNodeBenchmarker(Benchmarker):
   def test(self, data, test_on_val=False):
       self._model.eval()
       out = self._model(data.x, data.edge_index)
-      # Apply softmax to obtain proper probabilities
       out = torch.nn.functional.softmax(out, dim=-1)
       
       if test_on_val:
-          pred = out[self._val_mask].detach().numpy()
+          mask = self._val_mask
       else:
-          pred = out[self._test_mask].detach().numpy()
+          mask = self._test_mask
 
-      pred_best = pred.argmax(-1)
-      if test_on_val:
-          correct = data.y[self._val_mask].numpy()
-      else:
-          correct = data.y[self._test_mask].numpy()
+      pred = out[mask].detach().numpy()
+      correct = data.y[mask].numpy()
       
       n_classes = out.shape[-1]
-      # Build one-hot encoded true labels using numpy.eye for clarity
+      # Build one-hot encoded true labels
       correct_onehot = np.eye(n_classes)[correct]
 
-      # Attempt to compute ROC AUC and log loss; if only one class is present,
-      # these metrics are undefined. In that case, return NaN.
+      # Initialize results with NaN values
+      rocauc_ovr = float('nan')
+      rocauc_ovo = float('nan')
+      logloss = float('nan')
+      rocauc_ovr_super = float('nan') 
+
       try:
           rocauc_ovr = sklearn.metrics.roc_auc_score(correct_onehot, pred, multi_class='ovr')
           rocauc_ovo = sklearn.metrics.roc_auc_score(correct_onehot, pred, multi_class='ovo')
           logloss = sklearn.metrics.log_loss(correct_onehot, pred)
+
+          if hasattr(data, 'super_memberships') and data.super_memberships is not None:
+              
+              true_super_labels = data.super_memberships[mask].numpy()
+              num_super_clusters = len(np.unique(data.super_memberships.numpy()))
+              rocauc_ovr_super = calculate_super_cluster_performance(
+                  y_pred_proba=pred,
+                  y_true_subcluster=correct,
+                  num_sub_clusters=n_classes,
+                  num_super_clusters=num_super_clusters
+              )
+      
+
       except Exception as e:
-          rocauc_ovr = float('nan')
-          rocauc_ovo = float('nan')
-          logloss = float('nan')
+          # This will catch errors if metrics can't be computed
+          print(f"Metric calculation failed: {e}")
 
       results = {
-          'accuracy': sklearn.metrics.accuracy_score(correct, pred_best),
-          'f1_micro': sklearn.metrics.f1_score(correct, pred_best, average='micro'),
-          'f1_macro': sklearn.metrics.f1_score(correct, pred_best, average='macro'),
+          'accuracy': sklearn.metrics.accuracy_score(correct, pred.argmax(-1)),
+          'f1_micro': sklearn.metrics.f1_score(correct, pred.argmax(-1), average='micro'),
+          'f1_macro': sklearn.metrics.f1_score(correct, pred.argmax(-1), average='macro'),
           'rocauc_ovr': rocauc_ovr,
           'rocauc_ovo': rocauc_ovo,
-          'logloss': logloss
+          'logloss': logloss,
+          'rocauc_ovr_super': rocauc_ovr_super 
       }
-      return results 
+      return results
 
   def train(self, data,
             tuning_metric: str,

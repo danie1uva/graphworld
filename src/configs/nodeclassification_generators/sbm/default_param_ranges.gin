@@ -34,8 +34,8 @@ feature_dim/ParamSamplerSpec.min_val = 16.0
 feature_dim/ParamSamplerSpec.max_val = 16.0
 
 feature_center_distance/ParamSamplerSpec.name = "feature_center_distance"
-feature_center_distance/ParamSamplerSpec.min_val = 0.3
-feature_center_distance/ParamSamplerSpec.max_val = 0.3
+feature_center_distance/ParamSamplerSpec.min_val = 0.8
+feature_center_distance/ParamSamplerSpec.max_val = 0.8
 
 edge_center_distance/ParamSamplerSpec.name = "edge_center_distance"
 edge_center_distance/ParamSamplerSpec.min_val = 1.0
@@ -62,8 +62,8 @@ min_deg/ParamSamplerSpec.min_val = 2
 min_deg/ParamSamplerSpec.max_val = 2
 
 alpha/ParamSamplerSpec.name = "alpha"
-alpha/ParamSamplerSpec.min_val = .9
-alpha/ParamSamplerSpec.max_val = .9
+alpha/ParamSamplerSpec.min_val = 0.9
+alpha/ParamSamplerSpec.max_val = 0.9
 
 noise_var/ParamSamplerSpec.name = "noise_var"
 noise_var/ParamSamplerSpec.min_val = 0.1
