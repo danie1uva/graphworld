@@ -18,6 +18,7 @@ import math
 import random
 from typing import Dict, Sequence, List, Tuple
 from sklearn.preprocessing import normalize
+from sklearn.metrics import pairwise_distances
 
 import dataclasses
 import graph_tool
@@ -401,13 +402,23 @@ def SimulateNoisyFeatures(
     )
     sbm_data.super_memberships = None 
 
-    centre_cov = np.identity(feature_dim) * center_var
-    cluster_cov = np.identity(feature_dim) * cluster_var
-    centres = [
-        np.random.multivariate_normal(np.zeros(feature_dim), centre_cov)
-        for _ in range(num_groups)
-    ]
+    minimum_centre_dis_threshold = 0.5 
 
+    while True:
+
+      centre_cov = np.identity(feature_dim) * center_var
+      centres = [
+          np.random.multivariate_normal(np.zeros(feature_dim), centre_cov)
+          for _ in range(num_groups)
+      ]
+
+      dist_matrix = pairwise_distances(centres, metric = 'euclidean')
+      np.fill_diagonal(dist_matrix, np.inf)
+
+      if dist_matrix.min() > minimum_centre_dis_threshold:
+        break
+
+    cluster_cov = np.identity(feature_dim) * cluster_var
     signal_feats = np.vstack([
         np.random.multivariate_normal(centres[c], cluster_cov)
         for c in sbm_data.feature_memberships
