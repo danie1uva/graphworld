@@ -108,8 +108,19 @@ class SbmGeneratorWrapper(GeneratorConfigSampler):
     else:
       pi=MakePi(generator_config['num_clusters'],generator_config['cluster_size_slope'])
 
-    if self._hier_feats:
-      prop_mat=MakePropMat(generator_config['num_clusters'],generator_config['p_to_q_ratio'])
+    if self._hier_feats: 
+      if self._hsbm:
+        prop_mat = MakeHierarchicalPropMat(
+            num_super_communities=2,
+            subs_per_super=4,
+            p_inter_super=0.5,
+            p_intra_sub=14.0,
+            p_intra_super=4.0
+        )
+      else:
+        prop_mat = MakePropMat(generator_config['num_clusters'],
+                               generator_config['p_to_q_ratio'])
+                               
       sbm_data = GenerateStochasticBlockModelWithHierarchicalFeatures(
               num_vertices=generator_config['nvertex'],
               num_edges=generator_config['nvertex'] * generator_config['avg_degree'],
